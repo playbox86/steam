@@ -475,18 +475,44 @@
     .catalog-loading{grid-column:1/-1;text-align:center;color:var(--muted);padding:40px 20px}
 
 
-    /* На телефоне верхняя панель автоматически сворачивается при прокрутке вниз. */
+
+    /* === PERFORMANCE: лёгкий рендер карточек и плавная мобильная прокрутка === */
+    .catalog.is-updating{cursor:progress}
+    .catalog.is-updating .card{opacity:.92}
+    .card{
+      contain:layout paint style;
+      content-visibility:auto;
+      contain-intrinsic-size:520px;
+    }
+    .cover img{decoding:async}
+
     @media(max-width:650px){
-      .topbar{transition:box-shadow .18s ease}
-      .topbar.mobile-collapsed{box-shadow:0 8px 24px rgba(0,0,0,.28)}
-      .topbar.mobile-collapsed .wrap{padding-top:8px;padding-bottom:8px}
-      .topbar.mobile-collapsed .stats,
-      .topbar.mobile-collapsed .controls,
-      .topbar.mobile-collapsed .search-hint,
-      .topbar.mobile-collapsed .result-count{display:none}
-      .topbar.mobile-collapsed h1{font-size:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .topbar.mobile-collapsed .head{align-items:center}
-      .topbar.mobile-collapsed .cart-pill{padding:8px 11px}
+      /* backdrop-filter на слабых телефонах заметно тормозит sticky-шапку при скролле */
+      .topbar{
+        backdrop-filter:none;
+        -webkit-backdrop-filter:none;
+        background:#0b1018;
+      }
+      .card{
+        contain-intrinsic-size:470px;
+      }
+    }
+
+    /* На телефоне шапка целиком и плавно уезжает вверх после начала прокрутки.
+       Важно: высота блока НЕ меняется через display:none — это исключает
+       скачки scrollY и мигание sticky-панели. */
+    @media(max-width:650px){
+      .topbar{
+        will-change:transform;
+        transform:translate3d(0,0,0);
+        transition:transform .26s cubic-bezier(.22,.61,.36,1),box-shadow .20s ease;
+        box-shadow:0 8px 24px rgba(0,0,0,.14);
+      }
+      .topbar.mobile-collapsed{
+        transform:translate3d(0,-102%,0);
+        box-shadow:none;
+        pointer-events:none;
+      }
     }
 
     @media(max-width:650px){
@@ -528,7 +554,7 @@
         </select>
         <button class="sortbtn" id="sortBtn">По названию ↑</button>
       </div>
-      <div class="search-hint">Ищет по частям названия, сокращениям, AppID, вариантам V/5, русским написаниям (например «фифа», «гта», «ведьмак») и неправильной раскладке.</div>
+      <div class="search-hint">Умный поиск: название, AppID, сокращения, русские и английские варианты, смысловые слова (например «фифа», «фар край», «симулятор козла», «теннис») и неправильная раскладка.</div>
       <div class="result-count" id="resultCount">Показано <span>0</span> из 0</div>
     </div>
   </div>
@@ -574,13 +600,33 @@
     let mode = 'all';
     let sortAsc = true;
 
-    // Производительность: не создаём 60+ тысяч карточек одновременно.
-    const PAGE_SIZE = 60;
+    // === PERFORMANCE INDEXES ===
+    // 63+ тыс. игр больше не фильтруются заново при каждом переключении вкладки.
+    const ALL_GAMES = DATA.games || [];
+    const DISCOUNT_GAMES = ALL_GAMES.filter(g => !!g.has_any_discount);
+    const PREORDER_GAMES = ALL_GAMES.filter(g => !!(g.is_preorder || g.coming_soon));
+
+    // На телефоне рисуем меньше тяжёлых карточек за один раз.
+    const PAGE_SIZE = window.matchMedia('(max-width:650px)').matches ? 24 : 48;
+    const SEARCH_CHUNK = window.matchMedia('(max-width:650px)').matches ? 1800 : 5000;
+
     let currentPage = 1;
     let lastFilteredItems = [];
     let searchTimer = null;
+    let renderGeneration = 0;
+    let activeRenderPromise = null;
 
-    const GAME_BY_ID = new Map((DATA.games || []).map(g => [Number(g.appid), g]));
+    const GAME_BY_ID = new Map(ALL_GAMES.map(g => [Number(g.appid), g]));
+
+    // Индекс жанров строится один раз, а не при каждом выборе фильтра.
+    const GENRE_INDEX = new Map();
+    for(const g of ALL_GAMES){
+      for(const genre of (g.genres || [])){
+        if(!GENRE_INDEX.has(genre)) GENRE_INDEX.set(genre,[]);
+        GENRE_INDEX.get(genre).push(g);
+      }
+    }
+
     let detailsPromise = null;
 
     function ensureDetailsLoaded(){
@@ -884,76 +930,468 @@
     };
     const EN_TO_RU_KEYS = Object.fromEntries(Object.entries(RU_TO_EN_KEYS).map(([k,v])=>[v,k]));
 
+    // Поисковые псевдонимы. Они применяются ко всему каталогу, поэтому не нужно
+    // вручную прописывать data-search для десятков тысяч карточек.
+    const STRONG_QUERY_ALIASES = {
+      'fc':['ea sports fc'],
+      'фк':['ea sports fc'],
+      'фс':['ea sports fc'],
+      'fifa':['ea sports fc'],
+      'фифа':['ea sports fc'],
+      'gta':['grand theft auto'],
+      'гта':['grand theft auto'],
+      'rdr':['red dead redemption'],
+      'рдр':['red dead redemption'],
+      'nfs':['need for speed'],
+      'нфс':['need for speed'],
+      'cod':['call of duty'],
+      'код':['call of duty'],
+      'cs':['counter strike'],
+      'кс':['counter strike']
+    };
+
+    const PHRASE_QUERY_ALIASES = {
+      'fifa':'ea sports fc',
+      'фифа':'ea sports fc',
+      'фар край':'far cry',
+      'фаркрай':'far cry',
+      'farcry':'far cry',
+      'ведьмак':'the witcher witcher',
+      'зэ витчер':'the witcher witcher',
+      'гта':'gta grand theft auto',
+      'джитиэй':'gta grand theft auto',
+      'grand theft auto':'gta grand theft auto',
+      'резидент ивел':'resident evil',
+      'резидент эвил':'resident evil',
+      'обитель зла':'resident evil',
+      'кс':'counter strike',
+      'контра':'counter strike',
+      'контр страйк':'counter strike',
+      'колда':'call of duty',
+      'код':'call of duty',
+      'callofduty':'call of duty',
+      'батла':'battlefield',
+      'батлфилд':'battlefield',
+      'ассасин':'assassin creed',
+      'ассасин крид':'assassin creed',
+      'кредо убийцы':'assassin creed',
+      'ред дед':'red dead redemption',
+      'рдр':'red dead redemption rdr',
+      'нфс':'need for speed',
+      'нид фор спид':'need for speed',
+      'симс':'the sims sims',
+      'мортал комбат':'mortal kombat',
+      'теккен':'tekken',
+      'форза':'forza',
+      'хало':'halo',
+      'дум':'doom',
+      'сталкер':'stalker',
+      'элден ринг':'elden ring',
+      'дарк соулс':'dark souls',
+      'киберпанк':'cyberpunk',
+      'майнкрафт':'minecraft',
+      'фарминг симулятор':'farming simulator',
+      'футбол менеджер':'football manager',
+      'гоат симулятор':'goat simulator',
+      'симулятор козла':'goat simulator',
+      'симулятор козы':'goat simulator'
+    };
+
+    // Русские смысловые слова -> английские слова, которые реально встречаются
+    // в названиях Steam. Благодаря этому, например, "симулятор козла" находит
+    // Goat Simulator, а "теннис" — игры с Tennis в названии.
+    const RU_WORD_ALIASES = {
+      'симулятор':'simulator','симуляторы':'simulator','симулятора':'simulator',
+      'козел':'goat','козёл':'goat','козла':'goat','коза':'goat','козы':'goat',
+      'теннис':'tennis','тенис':'tennis',
+      'футбол':'football soccer','футбольный':'football soccer',
+      'баскетбол':'basketball','хоккей':'hockey',
+      'гонки':'racing race','гонка':'racing race','гоночный':'racing race',
+      'машина':'car cars driving','машины':'car cars driving','авто':'car cars driving','автомобиль':'car cars driving',
+      'мотоцикл':'motorcycle bike','мотоциклы':'motorcycle bike',
+      'ферма':'farm farming','фермер':'farm farming','фермерский':'farm farming',
+      'рыбалка':'fishing','рыба':'fishing fish',
+      'охота':'hunting hunter','охотник':'hunting hunter',
+      'поезд':'train railway','поезда':'train railway',
+      'самолет':'plane aircraft flight','самолёт':'plane aircraft flight','самолеты':'plane aircraft flight','самолёты':'plane aircraft flight',
+      'корабль':'ship naval','корабли':'ship naval',
+      'танк':'tank','танки':'tank tanks',
+      'зомби':'zombie zombies',
+      'война':'war','войны':'war',
+      'космос':'space','космический':'space',
+      'город':'city','города':'city',
+      'строительство':'builder building construction','строитель':'builder building construction',
+      'выживание':'survival','выживалка':'survival',
+      'ужасы':'horror','хоррор':'horror',
+      'приключение':'adventure','приключения':'adventure',
+      'стратегия':'strategy','стратегии':'strategy',
+      'головоломка':'puzzle','головоломки':'puzzle',
+      'рпг':'rpg role playing','ролевая':'rpg role playing',
+      'шутер':'shooter','стрелялка':'shooter',
+      'драки':'fighting fighter','драка':'fighting fighter',
+      'спорт':'sports sport',
+      'менеджер':'manager management'
+    };
+
+    const TITLE_EXTRA_ALIASES = [
+      [/^ea sports fc\b/i,'fifa фифа фк фс fc футбол'],
+      [/\bfar cry\b/i,'фар край фаркрай'],
+      [/\bgoat simulator\b/i,'симулятор козла симулятор козы гоат симулятор'],
+      [/\bthe witcher\b|\bwitcher\b/i,'ведьмак зэ витчер'],
+      [/\bgrand theft auto\b|\bgta\b/i,'гта джитиэй'],
+      [/\bresident evil\b/i,'резидент ивел резидент эвил обитель зла'],
+      [/\bcounter[\s-]*strike\b/i,'кс контра контр страйк'],
+      [/\bcall of duty\b/i,'колда код'],
+      [/\bbattlefield\b/i,'батла батлфилд'],
+      [/\bassassin'?s? creed\b/i,'ассасин ассасин крид кредо убийцы'],
+      [/\bred dead redemption\b/i,'ред дед рдр'],
+      [/\bneed for speed\b/i,'нфс нид фор спид'],
+      [/\bcyberpunk\b/i,'киберпанк'],
+      [/\bminecraft\b/i,'майнкрафт'],
+      [/\bmortal kombat\b/i,'мортал комбат'],
+      [/\belden ring\b/i,'элден ринг'],
+      [/\bdark souls\b/i,'дарк соулс']
+    ];
+
+    const GENRE_SEARCH_ALIASES = {
+      'action':'экшен действие боевик',
+      'adventure':'приключение приключения',
+      'casual':'казуальная казуальные',
+      'indie':'инди',
+      'rpg':'рпг ролевая',
+      'simulation':'симулятор симуляция',
+      'sports':'спорт спортивная',
+      'racing':'гонки гонка гоночная',
+      'strategy':'стратегия стратегии',
+      'free to play':'бесплатная free',
+      'early access':'ранний доступ'
+    };
+
     function switchKeyboardLayout(value, map){
       return [...String(value||'').toLowerCase()].map(ch => map[ch] ?? ch).join('');
     }
 
     function normalizeSearchText(value=''){
       return String(value)
-        .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+        .normalize('NFC')
+        .toLowerCase()
+        // Убираем латинские диакритики, но НЕ раскладываем русские Й/Ё.
+        .replace(/[àáâãäå]/g,'a').replace(/[èéêë]/g,'e')
+        .replace(/[ìíîï]/g,'i').replace(/[òóôõö]/g,'o')
+        .replace(/[ùúûü]/g,'u').replace(/[ç]/g,'c').replace(/[ñ]/g,'n')
         .replace(/[™®©]/g,' ')
         .replace(/&/g,' and ')
         .replace(/\+/g,' plus ')
-        .toLowerCase()
         .replace(/[^a-z0-9а-яё]+/gi,' ')
         .replace(/\s+/g,' ')
         .trim();
     }
 
+    function ruToLatin(value=''){
+      const map={
+        'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'yo','ж':'zh','з':'z','и':'i','й':'y',
+        'к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r','с':'s','т':'t','у':'u','ф':'f',
+        'х':'kh','ц':'ts','ч':'ch','ш':'sh','щ':'shch','ъ':'','ы':'y','ь':'','э':'e','ю':'yu','я':'ya'
+      };
+      return normalizeSearchText([...String(value||'').toLowerCase()].map(ch=>map[ch] ?? ch).join(''));
+    }
+
+    function addRomanVariants(value,out){
+      if(!value) return;
+      const romanToArabic={i:'1',ii:'2',iii:'3',iv:'4',v:'5',vi:'6',vii:'7',viii:'8',ix:'9',x:'10'};
+      const arabicToRoman=Object.fromEntries(Object.entries(romanToArabic).map(([k,n])=>[n,k]));
+      const words=value.split(' ');
+      out.add(words.map(w=>romanToArabic[w]||w).join(' '));
+      out.add(words.map(w=>arabicToRoman[w]||w).join(' '));
+    }
+
+    function addVariant(out,value){
+      const v=normalizeSearchText(value);
+      if(!v) return;
+      out.add(v);
+      out.add(v.replace(/\s+/g,''));
+      addRomanVariants(v,out);
+    }
+
+    function expandPhraseAliases(value,out){
+      const v=normalizeSearchText(value);
+      if(!v) return;
+      for(const [from,to] of Object.entries(PHRASE_QUERY_ALIASES)){
+        if(v === from){
+          addVariant(out,to);
+        }else if(v.includes(from)){
+          // Сохраняем остальные слова/номер. Например "фар край 6" -> "far cry 6",
+          // а не просто "far cry", иначе показывались бы все части серии.
+          addVariant(out,v.split(from).join(to));
+        }
+      }
+    }
+
+    function expandWordAliases(value,out){
+      const v=normalizeSearchText(value);
+      if(!v) return;
+      const words=v.split(' ');
+      let changed=false;
+      const translated=[];
+      for(const word of words){
+        const alias=RU_WORD_ALIASES[word];
+        if(alias){
+          translated.push(alias.split(' ')[0]);
+          changed=true;
+        }else{
+          translated.push(word);
+        }
+      }
+      if(changed) addVariant(out,translated.join(' '));
+
+    }
+
     function queryVariants(value=''){
-      const direct = normalizeSearchText(value);
-      const ruToEn = normalizeSearchText(switchKeyboardLayout(value, RU_TO_EN_KEYS));
-      const enToRu = normalizeSearchText(switchKeyboardLayout(value, EN_TO_RU_KEYS));
-      const out = new Set();
+      const direct=normalizeSearchText(value);
+      if(!direct) return [];
 
-      [direct, ruToEn, enToRu].forEach(v=>{
-        if(!v) return;
-        out.add(v);
-        out.add(v.replace(/\s+/g,''));
+      // FC / FIFA, в том числе вместе с номером: "FC 27", "ФИФА 27".
+      // Превращаем запрос в точное название современной серии.
+      const fcMatch=direct.match(/^(fc|фк|фс|fifa|фифа)(?:\s+(.+))?$/);
+      if(fcMatch){
+        const strong=new Set();
+        const suffix=fcMatch[2] ? ` ${fcMatch[2]}` : '';
+        addVariant(strong,`ea sports fc${suffix}`);
+        return [...strong].filter(Boolean);
+      }
 
-        const romanToArabic = {i:'1',ii:'2',iii:'3',iv:'4',v:'5',vi:'6',vii:'7',viii:'8',ix:'9',x:'10'};
-        const arabicToRoman = Object.fromEntries(Object.entries(romanToArabic).map(([k,n])=>[n,k]));
-        const words=v.split(' ');
-        out.add(words.map(w=>romanToArabic[w]||w).join(' '));
-        out.add(words.map(w=>arabicToRoman[w]||w).join(' '));
+      // Другие короткие сильные псевдонимы.
+      if(STRONG_QUERY_ALIASES[direct]){
+        const strong=new Set();
+        STRONG_QUERY_ALIASES[direct].forEach(v=>addVariant(strong,v));
+        return [...strong].filter(Boolean);
+      }
+
+      const out=new Set();
+      const ruToEnKeys=normalizeSearchText(switchKeyboardLayout(value,RU_TO_EN_KEYS));
+      const enToRuKeys=normalizeSearchText(switchKeyboardLayout(value,EN_TO_RU_KEYS));
+      const translit=ruToLatin(value);
+
+      [direct,ruToEnKeys,enToRuKeys,translit].forEach(v=>{
+        addVariant(out,v);
+        expandPhraseAliases(v,out);
+        expandWordAliases(v,out);
       });
+
+      // FIFA + номер (например "фифа 27") автоматически ищет EA SPORTS FC 27.
+      for(const fifa of ['fifa','фифа']){
+        if(direct.includes(fifa)){
+          addVariant(out,direct.replace(fifa,'ea sports fc'));
+        }
+      }
 
       return [...out].filter(Boolean);
     }
 
-    function itemSearchText(item){
-      // Новый оптимизированный data.js уже содержит готовую нормализованную строку поиска.
-      if(typeof item.search_text === 'string') return item.search_text;
-
-      // Совместимость со старым большим data.js.
-      const terms = Array.isArray(item.search_terms) ? item.search_terms : [];
-      return normalizeSearchText([item.name||'', item.appid||'', item.packageid||'', ...terms].join(' '));
+    function extraAliasesForItem(item){
+      const name=normalizeSearchText(item?.name||'');
+      const extra=[];
+      for(const [rx,aliases] of TITLE_EXTRA_ALIASES){
+        if(rx.test(name)) extra.push(aliases);
+      }
+      for(const genre of (item?.genres||[])){
+        const key=normalizeSearchText(genre);
+        if(GENRE_SEARCH_ALIASES[key]) extra.push(GENRE_SEARCH_ALIASES[key]);
+      }
+      return extra.join(' ');
     }
 
-    function searchScore(item, variants){
+    function strongAliasSet(item){
+      if(item && item.__strongAliasSet instanceof Set) return item.__strongAliasSet;
+      const out=new Set();
+      const add=(value)=>{
+        const v=normalizeSearchText(value);
+        if(!v) return;
+        out.add(v);
+        out.add(v.replace(/\s+/g,''));
+      };
+
+      const raw=item?.search_strong_aliases;
+      if(Array.isArray(raw)) raw.forEach(add);
+      else if(typeof raw==='string') raw.split('|').forEach(add);
+
+      // Fallback для будущего data.js без заранее созданного поля.
+      const name=normalizeSearchText(item?.name||'');
+      if(out.size===0){
+        for(const [rx,aliases] of TITLE_EXTRA_ALIASES){
+          if(!rx.test(name)) continue;
+          // Однословные известные обозначения серии считаются сильными.
+          String(aliases||'').split(/\s+/).forEach(x=>{ if(x.length>=2) add(x); });
+        }
+      }
+
+      if(item && typeof item==='object'){
+        try{Object.defineProperty(item,'__strongAliasSet',{value:out,enumerable:false,configurable:true});}catch(_){ }
+      }
+      return out;
+    }
+
+    function titleAliasSet(item){
+      if(item && item.__titleAliasSet instanceof Set) return item.__titleAliasSet;
+
+      const out=new Set();
+      const add=(value)=>{
+        const v=normalizeSearchText(value);
+        if(!v) return;
+        out.add(v);
+        out.add(v.replace(/\s+/g,''));
+      };
+
+      // Заранее подготовленные варианты для КАЖДОЙ игры.
+      const raw=item?.search_aliases;
+      if(Array.isArray(raw)) raw.forEach(add);
+      else if(typeof raw==='string') raw.split('|').forEach(add);
+
+      // Fallback: даже если следующий скрипт создаст data.js без search_aliases,
+      // базовые варианты всё равно строятся из названия самой игры.
+      const name=normalizeSearchText(item?.name||'');
+      add(name);
+      const words=name.split(' ').filter(Boolean);
+      if(words.length>=2){
+        add(words.map(w=>w[0]).join(''));
+        const stop=new Set(['the','of','and','a','an','to','for','in','on','with','from','at','by']);
+        const edition=new Set(['edition','deluxe','ultimate','complete','remastered','remake','definitive','collection','bundle','pack','game','digital','standard']);
+        const core=words.filter(w=>!stop.has(w) && !edition.has(w));
+        if(core.length>=2) add(core.map(w=>w[0]).join(''));
+        if(core.length && core.length!==words.length) add(core.join(' '));
+      }
+      for(const a of strongAliasSet(item)) add(a);
+
+      if(item && typeof item==='object'){
+        try{Object.defineProperty(item,'__titleAliasSet',{value:out,enumerable:false,configurable:true});}catch(_){ }
+      }
+      return out;
+    }
+
+    function coreAcronym(item){
+      const pre=normalizeSearchText(item?.search_core_acronym||'');
+      if(pre) return pre.replace(/\s+/g,'');
+
+      const name=normalizeSearchText(item?.name||'');
+      const stop=new Set(['the','of','and','a','an','to','for','in','on','with','from','at','by']);
+      const edition=new Set(['edition','deluxe','ultimate','complete','remastered','remake','definitive','collection','bundle','pack','game','digital','standard']);
+      const words=name.split(' ').filter(w=>w && !stop.has(w) && !edition.has(w));
+      if(words.length<2) return '';
+      return words.map(w=>/^\d+$/.test(w)?w:w[0]).join('');
+    }
+
+    function itemSearchText(item){
+      if(item && typeof item.__searchIndex==='string') return item.__searchIndex;
+      const terms=Array.isArray(item?.search_terms) ? item.search_terms : [];
+      const base=typeof item?.search_text==='string'
+        ? item.search_text
+        : [item?.name||'',item?.appid||'',item?.packageid||'',...terms].join(' ');
+      const aliases=[...titleAliasSet(item)].join(' ');
+      const index=normalizeSearchText([base,item?.name||'',item?.appid||'',item?.packageid||'',aliases].join(' '));
+      if(item && typeof item==='object'){
+        try{Object.defineProperty(item,'__searchIndex',{value:index,writable:false,enumerable:false,configurable:true});}catch(_){ }
+      }
+      return index;
+    }
+
+    function tokenSet(value){
+      return new Set(normalizeSearchText(value).split(' ').filter(Boolean));
+    }
+
+    // Быстрый поиск использует уже подготовленные search_name/search_text из data.js.
+    // Никаких Set/alias-объектов для 63 000 игр на каждый символ больше не создаётся.
+    function hasWholeToken(hay,q){
+      if(!hay || !q) return false;
+      if(hay===q) return true;
+      return hay.startsWith(q+' ') || hay.endsWith(' '+q) || hay.includes(' '+q+' ');
+    }
+
+    function hasWholePhrase(hay,q){
+      if(!hay || !q) return false;
+      if(hay===q) return true;
+      return hay.startsWith(q+' ') || hay.endsWith(' '+q) || hay.includes(' '+q+' ');
+    }
+
+    function searchScore(item,variants){
       if(!variants.length) return 1;
-      const name = typeof item.search_name === 'string'
+
+      // Эти поля уже нормализованы Python-скриптом.
+      const name = typeof item.search_name==='string'
         ? item.search_name
         : normalizeSearchText(item.name || '');
       const compactName = name.replace(/\s+/g,'');
-      const hay = itemSearchText(item);
-      const compactHay = hay.replace(/\s+/g,'');
+      const hay = typeof item.search_text==='string'
+        ? item.search_text
+        : itemSearchText(item);
 
-      let best = 0;
-      for(const q of variants){
-        const qc = q.replace(/\s+/g,'');
-        if(name === q || compactName === qc) best = Math.max(best,100);
-        else if(name.startsWith(q) || compactName.startsWith(qc)) best = Math.max(best,90);
-        else if(name.includes(q) || compactName.includes(qc)) best = Math.max(best,80);
-        else if(hay.includes(q) || compactHay.includes(qc)) best = Math.max(best,70);
-        else {
-          const words = q.split(' ').filter(Boolean);
-          if(words.length && words.every(w => hay.includes(w))) best = Math.max(best,60);
+      let best=0;
+
+      for(const q0 of variants){
+        // queryVariants уже нормализует запрос; повторная тяжёлая обработка не нужна.
+        const q=String(q0||'').trim();
+        if(!q) continue;
+        const qc=q.replace(/\s+/g,'');
+
+        if(name===q || compactName===qc){
+          best=2000;
+          break;
+        }
+
+        // Короткие запросы (FC/GTA/KTA/КС) ищутся ТОЛЬКО как отдельный alias-токен.
+        // Это не даёт случайных совпадений внутри других слов.
+        if(qc.length<=3){
+          if(hasWholeToken(hay,q) || hasWholeToken(hay,qc)){
+            best=Math.max(best,1850);
+          }
+          continue;
+        }
+
+        if(name.startsWith(q) || compactName.startsWith(qc)){
+          best=Math.max(best,1750);
+          continue;
+        }
+
+        // Готовые индивидуальные alias'ы каждой игры уже лежат в search_text.
+        if(hasWholePhrase(hay,q)){
+          best=Math.max(best,1700);
+          continue;
+        }
+
+        if(name.includes(q) || compactName.includes(qc)){
+          best=Math.max(best,1550);
+          continue;
+        }
+
+        if(hay.includes(q)){
+          best=Math.max(best,1250);
+          continue;
+        }
+
+        // Многословный запрос: все слова должны реально присутствовать.
+        const words=q.split(' ').filter(Boolean);
+        if(words.length>=2){
+          let ok=true;
+          for(const w of words){
+            if(!hasWholeToken(hay,w) && !hay.includes(w)){
+              ok=false;
+              break;
+            }
+          }
+          if(ok) best=Math.max(best,1100);
         }
       }
       return best;
     }
 
+    function scoreCutoff(maxScore){
+      if(maxScore>=2000) return 2000;
+      if(maxScore>=1850) return 1850;
+      if(maxScore>=1700) return 1700;
+      if(maxScore>=1550) return 1500;
+      if(maxScore>=1250) return 1250;
+      if(maxScore>=1100) return 1100;
+      return Infinity;
+    }
 
 
     function gameInfoHtml(g){
@@ -979,10 +1417,9 @@
     function populateGenres(){
       if(!genreFilter) return;
       const selected = genreFilter.value;
-      const genres = [...new Set(
-        (DATA.games||[]).flatMap(g => Array.isArray(g.genres) ? g.genres : [])
-          .filter(Boolean)
-      )].sort((a,b)=>a.localeCompare(b,'ru',{sensitivity:'base'}));
+      const genres=[...GENRE_INDEX.keys()]
+        .filter(Boolean)
+        .sort((a,b)=>a.localeCompare(b,'ru',{sensitivity:'base'}));
 
       genreFilter.innerHTML =
         `<option value="">Все жанры</option>` +
@@ -999,9 +1436,9 @@
       const sale = g.has_discount ? `<div class="sale-badge">СКИДКА</div>` : (g.has_any_discount ? `<div class="sale-badge">DLC СО СКИДКОЙ</div>` : '');
       const gameItem = {...g,itemType:'game'};
       return `
-        <article class="card" data-id="${g.appid}" data-search="${escapeHtml(g.search_text || (g.search_terms||[]).join(' '))}">
+        <article class="card" data-id="${g.appid}" data-search="${escapeHtml(itemSearchText(g))}">
           <div class="cover">
-            ${g.image ? `<img loading="lazy" src="${escapeHtml(g.image)}" alt="">` : ''}
+            ${g.image ? `<img loading="lazy" decoding="async" fetchpriority="low" src="${escapeHtml(g.image)}" alt="">` : ''}
             ${(g.is_preorder || g.coming_soon) ? `<div class="preorder-badge">ПРЕДЗАКАЗ</div>` : ''}
             ${sale}
           </div>
@@ -1020,21 +1457,8 @@
         </article>`;
     }
 
-    function matchesSearch(g, variants){
-      if(!variants.length) return true;
-
-      // В оптимизированном каталоге search_text игры уже включает название/ID
-      // самой игры, её DLC и игровой валюты. Один быстрый поиск вместо обхода
-      // десятков вложенных объектов на каждое нажатие клавиши.
-      if(typeof g.search_text === 'string') return searchScore(g,variants) > 0;
-
-      // Совместимость со старым data.js.
-      if(searchScore(g,variants) > 0) return true;
-      if((g.dlc || []).some(d => searchScore(d,variants) > 0)) return true;
-      return (g.currency_groups || []).some(group => {
-        if(searchScore(group,variants) > 0) return true;
-        return (group.options || []).some(opt => searchScore(opt,variants) > 0);
-      });
+    function matchesSearch(g,variants){
+      return !variants.length || searchScore(g,variants)>0;
     }
 
 
@@ -1070,43 +1494,117 @@
       if(wrap) wrap.style.display=totalItems ? 'flex' : 'none';
     }
 
-    function render(resetPage=false){
-      if(resetPage) currentPage=1;
+    function modeItems(){
+      if(mode==='discounts') return DISCOUNT_GAMES;
+      if(mode==='preorders') return PREORDER_GAMES;
+      return ALL_GAMES;
+    }
 
-      const variants = queryVariants(search.value.trim());
-      const selectedGenre = genreFilter?.value || '';
-      let items = (DATA.games || []).filter(g => {
-        if(mode === 'discounts' && !g.has_any_discount) return false;
-        if(mode === 'preorders' && !(g.is_preorder || g.coming_soon)) return false;
-        if(selectedGenre && !(g.genres || []).includes(selectedGenre)) return false;
-        return matchesSearch(g,variants);
+    function getBaseItems(selectedGenre){
+      const modeBase=modeItems();
+      if(!selectedGenre) return modeBase;
+
+      const genreItems=GENRE_INDEX.get(selectedGenre) || [];
+      if(mode==='all') return genreItems;
+
+      // Для Скидок/Предзаказов пересекаем уже маленький жанровый список.
+      if(mode==='discounts') return genreItems.filter(g=>!!g.has_any_discount);
+      return genreItems.filter(g=>!!(g.is_preorder || g.coming_soon));
+    }
+
+    function nextFrame(){
+      return new Promise(resolve=>{
+        if(typeof requestAnimationFrame==='function') requestAnimationFrame(()=>resolve());
+        else setTimeout(resolve,0);
       });
+    }
 
-      if(variants.length){
-        items.sort((a,b)=>{
-          const scoreA=searchScore(a,variants);
-          const scoreB=searchScore(b,variants);
-          if(scoreA!==scoreB) return scoreB-scoreA;
-          return (a.name||'').localeCompare(b.name||'','ru',{sensitivity:'base'});
-        });
-      } else if(!sortAsc) {
-        // Python уже сохраняет игры по алфавиту. Не сортируем 63k объектов заново.
-        items.reverse();
+    async function searchItemsSmooth(baseItems,variants,generation){
+      const scored=[];
+      let maxScore=0;
+
+      for(let i=0;i<baseItems.length;i+=SEARCH_CHUNK){
+        if(generation!==renderGeneration) return null;
+
+        const end=Math.min(baseItems.length,i+SEARCH_CHUNK);
+        for(let j=i;j<end;j++){
+          const g=baseItems[j];
+          const score=searchScore(g,variants);
+          if(score<=0) continue;
+          if(score>maxScore) maxScore=score;
+          scored.push({g,score});
+        }
+
+        // Отдаём браузеру кадр, чтобы поле поиска, скролл и кнопки не зависали.
+        if(end<baseItems.length) await nextFrame();
       }
 
-      lastFilteredItems=items;
+      if(generation!==renderGeneration) return null;
+
+      const cutoff=scoreCutoff(maxScore);
+      const filtered=scored.filter(x=>x.score>=cutoff);
+      filtered.sort((a,b)=>{
+        if(b.score!==a.score) return b.score-a.score;
+        const cmp=(a.g.name||'').localeCompare(b.g.name||'','ru',{sensitivity:'base'});
+        return sortAsc ? cmp : -cmp;
+      });
+      return filtered.map(x=>x.g);
+    }
+
+    function paintPage(){
+      const items=lastFilteredItems;
       const pages=Math.max(1,Math.ceil(items.length/PAGE_SIZE));
       if(currentPage>pages) currentPage=pages;
+
       const start=(currentPage-1)*PAGE_SIZE;
       const pageItems=items.slice(start,start+PAGE_SIZE);
 
-      catalog.innerHTML = pageItems.length
+      catalog.innerHTML=pageItems.length
         ? pageItems.map(cardHtml).join('')
         : `<div class="empty">Ничего не найдено</div>`;
 
       updateResultCount(items.length,pageItems.length);
       updatePager(items.length);
       bindDynamic();
+      catalog.classList.remove('is-updating');
+      catalog.removeAttribute('aria-busy');
+    }
+
+    async function render(resetPage=false){
+      if(resetPage) currentPage=1;
+
+      const generation=++renderGeneration;
+      const variants=queryVariants(search.value.trim());
+      const selectedGenre=genreFilter?.value || '';
+      let baseItems=getBaseItems(selectedGenre);
+
+      // Без поиска переключение вкладок практически мгновенное:
+      // никаких проходов по всем 63 000 играм.
+      if(!variants.length){
+        lastFilteredItems=sortAsc ? baseItems : [...baseItems].reverse();
+        paintPage();
+        return;
+      }
+
+      catalog.classList.add('is-updating');
+      catalog.setAttribute('aria-busy','true');
+      const counter=document.getElementById('resultCount');
+      if(counter) counter.innerHTML='Поиск…';
+
+      const items=await searchItemsSmooth(baseItems,variants,generation);
+      if(items===null || generation!==renderGeneration) return;
+
+      lastFilteredItems=items;
+      paintPage();
+    }
+
+    function scheduleRender(delay=75){
+      clearTimeout(searchTimer);
+      const generation=++renderGeneration; // мгновенно отменяем предыдущий незаконченный поиск
+      searchTimer=setTimeout(()=>{
+        // render сам создаст новый generation
+        activeRenderPromise=render(true);
+      },delay);
     }
 
     function goToPage(delta){
@@ -1114,7 +1612,9 @@
       const target=Math.min(pages,Math.max(1,currentPage+delta));
       if(target===currentPage) return;
       currentPage=target;
-      render(false);
+
+      // Переход страницы НЕ запускает поиск/фильтрацию заново.
+      paintPage();
       document.getElementById('catalog')?.scrollIntoView({behavior:'smooth',block:'start'});
     }
 
@@ -1226,65 +1726,74 @@
     }
 
 
-    // Мобильная шапка: при прокрутке вниз оставляем только компактную строку,
-    // при прокрутке вверх или возврате к началу снова показываем фильтры.
+    // Мобильная шапка:
+    // прячется даже если поле поиска остаётся в фокусе.
+    // Это важно после поиска: пользователь может листать карточку вниз,
+    // а клавиатура/фокус поиска больше не удерживают верхнюю панель.
+    // Обратно шапка появляется только при возврате почти к самому верху.
     const topbar=document.querySelector('.topbar');
-    let mobileHeaderLastY=window.scrollY;
     let mobileHeaderRaf=0;
+    const MOBILE_HEADER_HIDE_Y=48;
+    const MOBILE_HEADER_SHOW_Y=8;
 
     function updateMobileHeader(){
       mobileHeaderRaf=0;
       if(!topbar) return;
+
       if(window.innerWidth>650){
         topbar.classList.remove('mobile-collapsed');
-        mobileHeaderLastY=window.scrollY;
         return;
       }
 
-      const y=window.scrollY;
-      const delta=y-mobileHeaderLastY;
-      const searchFocused=document.activeElement===search;
+      const y=Math.max(0,window.scrollY || document.documentElement.scrollTop || 0);
       const overlayOpen=document.body.classList.contains('cart-open') || document.body.classList.contains('modal-open');
 
-      if(y<70 || searchFocused || overlayOpen){
-        topbar.classList.remove('mobile-collapsed');
-      }else if(delta>6 && y>120){
+      // Корзину и модальные окна не перекрываем поведением шапки.
+      // Фокус в строке поиска намеренно НЕ блокирует сворачивание.
+      if(overlayOpen){
+        return;
+      }
+
+      if(y>=MOBILE_HEADER_HIDE_Y){
         topbar.classList.add('mobile-collapsed');
-      }else if(delta<-6){
+      }else if(y<=MOBILE_HEADER_SHOW_Y){
         topbar.classList.remove('mobile-collapsed');
       }
-      mobileHeaderLastY=y;
     }
 
     window.addEventListener('scroll',()=>{
-      if(!mobileHeaderRaf) mobileHeaderRaf=requestAnimationFrame(updateMobileHeader);
+      if(!mobileHeaderRaf){
+        mobileHeaderRaf=requestAnimationFrame(updateMobileHeader);
+      }
     },{passive:true});
     window.addEventListener('resize',updateMobileHeader,{passive:true});
-    topbar?.addEventListener('click',()=>{
-      if(window.innerWidth<=650 && topbar.classList.contains('mobile-collapsed')){
-        topbar.classList.remove('mobile-collapsed');
-      }
-    });
+    window.addEventListener('pageshow',updateMobileHeader);
+    updateMobileHeader();
 
     document.querySelectorAll('.tab').forEach(btn=>{
       btn.onclick=()=>{
         document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
         btn.classList.add('active');
         mode=btn.dataset.mode;
-        render(true);
+        clearTimeout(searchTimer);
+        renderGeneration++;
+        activeRenderPromise=render(true);
       };
     });
 
-    // Не запускаем фильтрацию десятков тысяч записей на каждый символ мгновенно.
-    search.addEventListener('input',()=>{
+    // Быстрый debounce + отмена устаревшего поиска.
+    search.addEventListener('input',()=>scheduleRender(75));
+    genreFilter?.addEventListener('change',()=>{
       clearTimeout(searchTimer);
-      searchTimer=setTimeout(()=>render(true),180);
+      renderGeneration++;
+      activeRenderPromise=render(true);
     });
-    genreFilter?.addEventListener('change',()=>render(true));
     document.getElementById('sortBtn').onclick=(e)=>{
       sortAsc=!sortAsc;
       e.currentTarget.textContent=sortAsc?'По названию ↑':'По названию ↓';
-      render(true);
+      clearTimeout(searchTimer);
+      renderGeneration++;
+      activeRenderPromise=render(true);
     };
     document.getElementById('prevPageBtn')?.addEventListener('click',()=>goToPage(-1));
     document.getElementById('nextPageBtn')?.addEventListener('click',()=>goToPage(1));
