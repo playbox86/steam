@@ -1,0 +1,1522 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Steam — Украина / Турция</title>
+  <style>
+    :root{
+      --bg:#0b1018;--panel:#121a25;--panel2:#182332;--text:#f4f7fb;
+      --muted:#93a4b7;--line:#263548;--green:#36d17d;--red:#ff6577;
+      --accent:#66a6ff;--shadow:0 14px 40px rgba(0,0,0,.25)
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+    button,input{font:inherit}
+    .topbar{position:sticky;top:0;z-index:10;background:rgba(11,16,24,.95);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+    .wrap{max-width:1460px;margin:auto;padding:18px 22px}
+    .head{display:flex;gap:18px;align-items:center;justify-content:space-between}
+    h1{font-size:24px;margin:0}
+    .stats{color:var(--muted);font-size:13px;margin-top:5px}
+    .cart-pill{
+      border:1px solid rgba(255,255,255,.14);
+      background:linear-gradient(135deg,#b91c1c,#7f1d1d);
+      color:#fff;
+      border-radius:999px;
+      padding:10px 14px;
+      cursor:pointer;
+      font-weight:900;
+      box-shadow:0 8px 22px rgba(127,29,29,.28);
+      transition:background .22s ease, box-shadow .22s ease, transform .18s ease
+    }
+    .cart-pill.has-items{
+      background:linear-gradient(135deg,#22c55e,#15803d);
+      box-shadow:0 8px 22px rgba(34,197,94,.28)
+    }
+    .controls{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+    .tab,.sortbtn{border:1px solid var(--line);background:var(--panel);color:#fff;padding:10px 14px;border-radius:10px;cursor:pointer}
+    .tab.active{background:var(--accent);color:#07101c;border-color:transparent;font-weight:800}
+    .search{flex:1;min-width:220px;background:var(--panel);color:#fff;border:1px solid var(--line);padding:11px 14px;border-radius:10px;outline:none}
+    .genre-select{min-width:190px;background:var(--panel);color:#fff;border:1px solid var(--line);padding:10px 12px;border-radius:10px;outline:none}
+    .info-line{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 11px}
+    .info-chip{display:inline-flex;align-items:center;padding:4px 7px;border-radius:999px;background:#202d3e;border:1px solid var(--line);font-size:11px;color:#cbd5e1}
+    .info-chip.genre{background:rgba(249,115,22,.16);border-color:rgba(249,115,22,.55);color:#fb923c;font-weight:800}
+    .info-chip.ru{background:rgba(54,209,125,.10);border-color:rgba(54,209,125,.35);color:#7ef0a9}
+    .info-chip.no-ru{
+      background:rgba(255,101,119,.13);
+      border-color:rgba(255,101,119,.48);
+      color:#ff7b89;
+      opacity:1;
+      font-weight:850
+    }
+    .search-hint{margin-top:8px;color:var(--muted);font-size:12px}
+    .result-count{margin-top:10px;color:var(--text);font-size:13px;font-weight:800}
+    .result-count span{color:var(--green)}
+    .cart-summary{position:sticky;bottom:0;background:#101925;border-top:1px solid var(--line);padding:14px 0;margin-top:14px}
+    .cart-row{display:flex;justify-content:space-between;gap:12px;margin:7px 0}
+    .cart-discount{color:var(--green);font-weight:900}
+    .cart-total{font-size:18px;font-weight:900}
+    .cart-note{font-size:12px;color:var(--muted);line-height:1.35;margin-top:8px}
+    .checkout-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:14px}
+    .checkout-btn{border:0;border-radius:10px;padding:11px 10px;font-weight:900;cursor:pointer}
+    .checkout-btn.telegram{background:#2aabee;color:#fff}
+    .checkout-btn.whatsapp{background:#25d366;color:#07150d}
+    .checkout-btn.copy{background:#334155;color:#fff}
+    .checkout-btn.clear{background:#7f1d1d;color:#fff}
+    .checkout-btn:hover{filter:brightness(1.08)}
+    .checkout-status{min-height:18px;margin-top:9px;font-size:12px;color:var(--green);font-weight:800}
+    .cart-pill.bump{animation:cartBump .48s cubic-bezier(.2,.8,.2,1)}
+    @keyframes cartBump{
+      0%{transform:scale(1)}
+      38%{transform:scale(1.28)}
+      68%{transform:scale(.97)}
+      100%{transform:scale(1)}
+    }
+    .catalog{display:grid;grid-template-columns:repeat(auto-fill,minmax(285px,1fr));gap:18px}
+    .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:var(--shadow)}
+    .cover{aspect-ratio:460/215;background:#0e1621;overflow:hidden;position:relative}
+    .cover img{width:100%;height:100%;object-fit:cover;display:block}
+    .sale-badge{position:absolute;top:10px;right:10px;background:var(--green);color:#07150d;padding:6px 9px;border-radius:8px;font-size:12px;font-weight:900}
+    .preorder-badge{
+      position:absolute;
+      top:10px;
+      left:10px;
+      background:linear-gradient(135deg,#f59e0b,#ea580c);
+      color:#fff;
+      padding:6px 9px;
+      border-radius:8px;
+      font-size:12px;
+      font-weight:950;
+      letter-spacing:.03em;
+      box-shadow:0 6px 18px rgba(234,88,12,.28)
+    }
+    .body{padding:15px}
+    .title{font-size:17px;font-weight:800;line-height:1.25;margin:0 0 8px}
+    .meta{font-size:12px;color:var(--muted);min-height:18px;margin-bottom:12px}
+    .region{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:11px;margin-top:9px}
+    .region-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+    .region-name{font-weight:800}
+    .price{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:7px}
+    .old{text-decoration:line-through;color:var(--red);opacity:.9}
+    .new{color:var(--green);font-size:18px;font-weight:900}
+    .regular{font-size:18px;font-weight:900}
+    .discount{background:rgba(54,209,125,.14);color:var(--green);border:1px solid rgba(54,209,125,.35);font-size:12px;padding:3px 6px;border-radius:6px;font-weight:800}
+    .unavailable{color:var(--muted);font-size:13px}
+    .buy{width:100%;border:0;background:var(--accent);color:#07101c;font-weight:900;padding:9px 10px;border-radius:8px;margin-top:9px;cursor:pointer}
+    .buy:hover{filter:brightness(1.08)}
+    .buy.in-cart{
+      background:linear-gradient(135deg,#34d399,#16a34a);
+      color:#06150c;
+      box-shadow:0 0 0 1px rgba(52,211,153,.18),0 7px 18px rgba(22,163,74,.22)
+    }
+    .dlc-toggle{width:100%;margin-top:12px;padding:10px;border-radius:9px;border:1px solid var(--line);background:transparent;color:#fff;cursor:pointer;font-weight:800}
+    .dlc-wrap{display:none;border-top:1px solid var(--line);padding:12px 15px 16px;background:#0e1621}
+    .dlc-wrap.open{display:block}
+    .dlc-item{border:1px solid var(--line);background:var(--panel);border-radius:11px;padding:11px;margin-top:9px}
+    .dlc-name{font-weight:800;font-size:14px;margin-bottom:7px}
+    .dlc-regions{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+    .dlc-item .region{margin:0;padding:8px}
+    .dlc-item .new,.dlc-item .regular{font-size:14px}
+    .dlc-item .buy{font-size:12px;padding:7px}
+    .empty{text-align:center;color:var(--muted);padding:60px 20px;grid-column:1/-1}
+    body.modal-open{overflow:hidden}
+    .content-modal{display:none;position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.72);padding:24px;align-items:center;justify-content:center}
+    .content-modal.open{display:flex}
+    .content-modal-panel{width:min(1120px,100%);max-height:92vh;background:#0d1520;border:1px solid var(--line);border-radius:18px;box-shadow:0 25px 80px rgba(0,0,0,.6);display:flex;flex-direction:column;overflow:hidden}
+    .content-modal-head{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:16px 18px;border-bottom:1px solid var(--line);background:#101a28;flex:0 0 auto}
+    .content-modal-title{font-size:19px;font-weight:900}
+    .content-modal-close{border:0;background:#263548;color:#fff;width:38px;height:38px;border-radius:10px;font-size:24px;cursor:pointer}
+    .content-modal-scroll{overflow-y:auto;overscroll-behavior:contain;padding:16px;min-height:0}
+    .modal-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+    .modal-item{border:1px solid var(--line);background:var(--panel);border-radius:14px;overflow:hidden}
+    .modal-item-cover{width:100%;aspect-ratio:460/215;object-fit:cover;background:#0a111b;display:block}
+    .modal-item-body{padding:12px}
+    .modal-item-title{font-weight:900;font-size:14px;line-height:1.3;margin-bottom:10px}
+    /* Игровая валюта: дизайн собирается автоматически из данных Steam. */
+    .currency-group{
+      border:1px solid #29415b;
+      border-radius:18px;
+      background:
+        radial-gradient(circle at 100% 0%,rgba(64,132,255,.10),transparent 36%),
+        linear-gradient(180deg,#101a28,#0d1622);
+      overflow:hidden;
+      margin-bottom:18px;
+      box-shadow:0 18px 45px rgba(0,0,0,.22)
+    }
+    .currency-hero{
+      display:grid;
+      grid-template-columns:1fr;
+      gap:22px;
+      align-items:center;
+      padding:18px;
+      border-bottom:1px solid #29415b
+    }
+    .currency-hero-info{min-width:0}
+    .currency-kicker{
+      color:#7f95ad;
+      font-size:11px;
+      font-weight:900;
+      text-transform:uppercase;
+      letter-spacing:.13em;
+      margin-bottom:6px
+    }
+    .currency-group-title{
+      font-size:21px;
+      line-height:1.22;
+      font-weight:950;
+      overflow-wrap:anywhere
+    }
+    .currency-group-count{color:var(--muted);font-size:13px;margin-top:5px}
+    .currency-badges{display:flex;flex-wrap:wrap;gap:8px;margin-top:13px}
+    .currency-badge{
+      display:inline-flex;
+      align-items:center;
+      min-width:0;
+      max-width:100%;
+      padding:7px 10px;
+      border-radius:9px;
+      border:1px solid #2c4057;
+      background:#172438;
+      color:#b8c7d8;
+      font-size:12px;
+      font-weight:800;
+      overflow-wrap:anywhere
+    }
+    .currency-badge.primary{
+      border-color:rgba(124,92,255,.45);
+      background:rgba(124,92,255,.12);
+      color:#c4b5fd
+    }
+
+    .currency-table-head{
+      display:grid;
+      grid-template-columns:minmax(210px,.92fr) minmax(220px,1fr) minmax(220px,1fr);
+      gap:10px;
+      padding:13px 16px 7px;
+      color:#9fb0c4;
+      font-size:12px;
+      font-weight:850
+    }
+    .currency-options{padding:0 14px 14px}
+    .currency-option{
+      --currency-accent:#fb923c;
+      --currency-accent-rgb:251,146,60;
+      display:grid;
+      grid-template-columns:minmax(210px,.92fr) minmax(220px,1fr) minmax(220px,1fr);
+      gap:10px;
+      align-items:stretch;
+      padding:10px 0;
+      border-bottom:1px solid rgba(255,255,255,.07)
+    }
+    .currency-option:last-child{border-bottom:0}
+    .currency-option.tone-0{--currency-accent:#fb923c;--currency-accent-rgb:251,146,60}
+    .currency-option.tone-1{--currency-accent:#a78bfa;--currency-accent-rgb:167,139,250}
+    .currency-option.tone-2{--currency-accent:#22d3ee;--currency-accent-rgb:34,211,238}
+    .currency-option.tone-3{--currency-accent:#34d399;--currency-accent-rgb:52,211,153}
+    .currency-option.tone-4{--currency-accent:#f472b6;--currency-accent-rgb:244,114,182}
+    .currency-option.tone-5{--currency-accent:#facc15;--currency-accent-rgb:250,204,21}
+
+    .currency-denom-card{
+      min-width:0;
+      min-height:112px;
+      display:flex;
+      align-items:center;
+      gap:14px;
+      padding:16px 17px;
+      border-radius:13px;
+      border:1px solid rgba(var(--currency-accent-rgb),.42);
+      border-left:4px solid var(--currency-accent);
+      background:
+        linear-gradient(105deg,rgba(var(--currency-accent-rgb),.16),rgba(var(--currency-accent-rgb),.025) 64%),
+        #111a27;
+      box-shadow:inset 0 0 28px rgba(var(--currency-accent-rgb),.045)
+    }
+    .currency-coins{
+      width:40px;
+      height:40px;
+      flex:0 0 40px;
+      color:var(--currency-accent)
+    }
+    .currency-denom-text{min-width:0}
+    .currency-denom-number{
+      color:var(--currency-accent);
+      font-size:29px;
+      line-height:1;
+      font-weight:950;
+      letter-spacing:.01em
+    }
+    .currency-denom-label{
+      margin-top:6px;
+      color:#e5edf6;
+      font-size:13px;
+      font-weight:800;
+      overflow-wrap:anywhere
+    }
+
+    .currency-region-card{
+      min-width:0;
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
+      border:1px solid #29415b;
+      border-radius:13px;
+      background:linear-gradient(145deg,#172538,#111c2a);
+      padding:13px
+    }
+    .currency-region-name{
+      color:#d9e4f1;
+      font-size:13px;
+      font-weight:900;
+      overflow-wrap:anywhere
+    }
+    .currency-region-price{
+      display:flex;
+      align-items:center;
+      gap:7px;
+      flex-wrap:wrap;
+      min-height:29px;
+      margin:5px 0 8px
+    }
+    .currency-region-price .regular,
+    .currency-region-price .new{font-size:20px}
+    .currency-buy{
+      width:100%;
+      min-width:0;
+      border:0;
+      border-radius:9px;
+      background:linear-gradient(135deg,#58a4ff,#347cf0);
+      color:#06111e;
+      padding:10px 11px;
+      font-weight:950;
+      cursor:pointer;
+      white-space:normal;
+      overflow-wrap:anywhere
+    }
+    .currency-buy:hover{filter:brightness(1.08)}
+    .currency-buy.in-cart{
+      background:linear-gradient(135deg,#34d399,#16a34a);
+      color:#06150c;
+      box-shadow:0 0 0 1px rgba(52,211,153,.18),0 7px 18px rgba(22,163,74,.24)
+    }
+    .currency-unavailable{
+      color:var(--muted);
+      font-size:13px;
+      padding:8px 0
+    }
+    .content-btns{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}
+    .content-open-btn{width:100%;border:1px solid var(--line);background:#1b2b40;color:#fff;padding:10px;border-radius:9px;cursor:pointer;font-weight:900}
+    .content-open-btn.currency{background:linear-gradient(135deg,#7c3aed,#2563eb);border:0}
+    .free-label{font-size:18px;font-weight:900;color:var(--green)}
+    @media(max-width:900px){
+      .currency-table-head{display:none}
+      .currency-option{
+        grid-template-columns:minmax(170px,.8fr) minmax(0,1fr) minmax(0,1fr)
+      }
+      .currency-denom-card{padding:14px}
+    }
+    @media(max-width:760px){
+      .content-modal{padding:7px}
+      .content-modal-panel{
+        width:100%;
+        max-height:calc(100dvh - 14px);
+        border-radius:13px
+      }
+      .content-modal-head{padding:12px 13px}
+      .content-modal-title{font-size:16px;line-height:1.25}
+      .content-modal-scroll{padding:9px}
+      .currency-hero{
+        grid-template-columns:1fr;
+        gap:12px;
+        padding:12px
+      }
+      .currency-group-title{font-size:18px}
+      .currency-option{
+        grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+        gap:8px;
+        padding:9px 0
+      }
+      .currency-denom-card{
+        grid-column:1/-1;
+        min-height:82px
+      }
+      .currency-denom-number{font-size:25px}
+      .currency-region-card{padding:10px}
+      .currency-buy{font-size:13px;padding:10px 7px}
+      .modal-grid{grid-template-columns:1fr}
+    }
+    @media(max-width:520px){
+      .currency-options{padding:0 8px 10px}
+      .currency-option{grid-template-columns:1fr}
+      .currency-denom-card{grid-column:auto}
+      .currency-region-card{width:100%}
+      .currency-badges{gap:6px}
+      .currency-badge{font-size:11px;padding:6px 8px}
+      .currency-denom-card{min-height:76px;padding:13px}
+      .currency-coins{width:34px;height:34px;flex-basis:34px}
+      .currency-denom-number{font-size:24px}
+      .currency-region-price .regular,
+      .currency-region-price .new{font-size:19px}
+    }
+
+    /* Корзина — отдельная выезжающая панель. */
+    body.cart-open{overflow:hidden}
+    .cart-backdrop{
+      position:fixed;
+      inset:0;
+      z-index:39;
+      background:rgba(0,0,0,.58);
+      opacity:0;
+      visibility:hidden;
+      pointer-events:none;
+      transition:opacity .22s ease,visibility .22s ease
+    }
+    .cart-backdrop.open{
+      opacity:1;
+      visibility:visible;
+      pointer-events:auto
+    }
+    .drawer{
+      position:fixed;
+      right:0;
+      top:0;
+      bottom:0;
+      width:min(440px,100%);
+      background:#0d1520;
+      border-left:1px solid var(--line);
+      z-index:40;
+      transform:translateX(105%);
+      visibility:hidden;
+      transition:transform .24s ease,visibility .24s ease;
+      box-shadow:-20px 0 50px rgba(0,0,0,.45);
+      display:flex;
+      flex-direction:column
+    }
+    .drawer.open{
+      transform:translateX(0);
+      visibility:visible
+    }
+    .drawer-head{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      padding:16px 18px;
+      border-bottom:1px solid var(--line);
+      flex:0 0 auto;
+      background:#101925
+    }
+    .drawer-title{font-size:18px;font-weight:950}
+    .drawer-body{
+      padding:14px 18px 18px;
+      overflow-y:auto;
+      overscroll-behavior:contain;
+      flex:1 1 auto;
+      min-height:0
+    }
+    .cart-item{
+      border:1px solid var(--line);
+      background:#121d2b;
+      border-radius:11px;
+      padding:11px;
+      margin-bottom:9px
+    }
+    .cart-item strong{display:block;padding-right:70px;line-height:1.3}
+    .cart-item small{color:var(--muted);line-height:1.4}
+    .remove{
+      float:right;
+      background:#351821;
+      color:#ff8492;
+      border:1px solid rgba(255,101,119,.28);
+      border-radius:7px;
+      padding:5px 7px;
+      cursor:pointer
+    }
+    .close{
+      background:#263548;
+      border:0;
+      color:white;
+      width:38px;
+      height:38px;
+      border-radius:10px;
+      font-size:25px;
+      line-height:1;
+      cursor:pointer
+    }
+    .drawer .empty{padding:45px 10px}
+    .drawer .cart-summary{
+      position:static;
+      margin-top:14px;
+      padding:14px 0 0;
+      background:transparent
+    }
+
+
+    /* Производительность: в DOM одновременно только одна страница карточек. */
+    .catalog-pager{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:12px;
+      flex-wrap:wrap;
+      margin:22px 0 8px;
+    }
+    .pager-btn{
+      border:1px solid var(--line);
+      background:var(--panel);
+      color:#fff;
+      padding:10px 15px;
+      border-radius:10px;
+      cursor:pointer;
+      font-weight:850;
+    }
+    .pager-btn:hover:not(:disabled){filter:brightness(1.12)}
+    .pager-btn:disabled{opacity:.42;cursor:not-allowed}
+    .pager-info{color:var(--muted);font-size:13px;font-weight:800;min-width:190px;text-align:center}
+    .catalog-loading{grid-column:1/-1;text-align:center;color:var(--muted);padding:40px 20px}
+
+
+    /* На телефоне верхняя панель автоматически сворачивается при прокрутке вниз. */
+    @media(max-width:650px){
+      .topbar{transition:box-shadow .18s ease}
+      .topbar.mobile-collapsed{box-shadow:0 8px 24px rgba(0,0,0,.28)}
+      .topbar.mobile-collapsed .wrap{padding-top:8px;padding-bottom:8px}
+      .topbar.mobile-collapsed .stats,
+      .topbar.mobile-collapsed .controls,
+      .topbar.mobile-collapsed .search-hint,
+      .topbar.mobile-collapsed .result-count{display:none}
+      .topbar.mobile-collapsed h1{font-size:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .topbar.mobile-collapsed .head{align-items:center}
+      .topbar.mobile-collapsed .cart-pill{padding:8px 11px}
+    }
+
+    @media(max-width:650px){
+      .wrap{padding:14px}
+      .head{align-items:flex-start}
+      .dlc-regions{grid-template-columns:1fr}
+      .catalog{grid-template-columns:1fr}
+      .drawer{
+        width:100%;
+        border-left:0;
+        border-top:1px solid var(--line)
+      }
+      .drawer-head{padding:13px 14px}
+      .drawer-body{padding:12px 14px 18px}
+      .checkout-actions{grid-template-columns:1fr}
+      .cart-row{font-size:14px}
+      .cart-total{font-size:17px}
+    }
+
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="wrap">
+      <div class="head">
+        <div>
+          <h1>Steam — Украина / Турция</h1>
+          <div class="stats" id="stats">Загрузка каталога…</div>
+        </div>
+        <button class="cart-pill" id="cartBtn">Корзина · <span id="cartCount">0</span></button>
+      </div>
+      <div class="controls">
+        <button class="tab active" data-mode="all">Все игры</button>
+        <button class="tab" data-mode="discounts">Скидки</button>
+        <button class="tab" data-mode="preorders">Предзаказы</button>
+        <input class="search" id="search" placeholder="Поиск: Resident Evil, RE4, GTA 5, AppID, DLC…">
+        <select class="genre-select" id="genreFilter">
+          <option value="">Все жанры</option>
+        </select>
+        <button class="sortbtn" id="sortBtn">По названию ↑</button>
+      </div>
+      <div class="search-hint">Ищет по частям названия, сокращениям, AppID, вариантам V/5, русским написаниям (например «фифа», «гта», «ведьмак») и неправильной раскладке.</div>
+      <div class="result-count" id="resultCount">Показано <span>0</span> из 0</div>
+    </div>
+  </div>
+
+  <main class="wrap">
+    <section class="catalog" id="catalog"></section>
+
+    <div class="catalog-pager" id="catalogPager">
+      <button class="pager-btn" id="prevPageBtn">← Назад</button>
+      <div class="pager-info" id="pagerInfo">Страница 1 из 1</div>
+      <button class="pager-btn" id="nextPageBtn">Вперёд →</button>
+    </div>
+  </main>
+
+  <div class="cart-backdrop" id="cartBackdrop" aria-hidden="true"></div>
+
+  <aside class="drawer" id="drawer" aria-hidden="true">
+    <div class="drawer-head">
+      <strong class="drawer-title">Корзина</strong>
+      <button class="close" id="closeCart" aria-label="Закрыть корзину">×</button>
+    </div>
+    <div class="drawer-body" id="cartBody"></div>
+  </aside>
+
+  <div class="content-modal" id="contentModal" aria-hidden="true">
+    <div class="content-modal-panel" role="dialog" aria-modal="true">
+      <div class="content-modal-head">
+        <div class="content-modal-title" id="contentModalTitle">Дополнения</div>
+        <button class="content-modal-close" id="contentModalClose" aria-label="Закрыть">×</button>
+      </div>
+      <div class="content-modal-scroll" id="contentModalBody"></div>
+    </div>
+  </div>
+
+  <!-- Python-скрипт создаёт этот файл при каждом запуске -->
+  <script src="steam_catalog_data.js"></script>
+  <script>
+    const DATA = window.STEAM_CATALOG || {games:[],stats:{}};
+    const catalog = document.getElementById('catalog');
+    const search = document.getElementById('search');
+    const stats = document.getElementById('stats');
+    const genreFilter = document.getElementById('genreFilter');
+    let mode = 'all';
+    let sortAsc = true;
+
+    // Производительность: не создаём 60+ тысяч карточек одновременно.
+    const PAGE_SIZE = 60;
+    let currentPage = 1;
+    let lastFilteredItems = [];
+    let searchTimer = null;
+
+    const GAME_BY_ID = new Map((DATA.games || []).map(g => [Number(g.appid), g]));
+    let detailsPromise = null;
+
+    function ensureDetailsLoaded(){
+      if(window.STEAM_CATALOG_DETAILS) return Promise.resolve(window.STEAM_CATALOG_DETAILS);
+      if(detailsPromise) return detailsPromise;
+
+      detailsPromise = new Promise((resolve,reject)=>{
+        const script=document.createElement('script');
+        script.src='steam_catalog_details.js';
+        script.async=true;
+        script.onload=()=>resolve(window.STEAM_CATALOG_DETAILS || {});
+        script.onerror=()=>{
+          detailsPromise=null;
+          reject(new Error('Не удалось загрузить steam_catalog_details.js'));
+        };
+        document.head.appendChild(script);
+      });
+      return detailsPromise;
+    }
+
+    function escapeHtml(value=''){
+      return String(value).replace(/[&<>"']/g, c => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'
+      })[c]);
+    }
+
+    function formattedPrice(p){
+      if(!p || p.available === false) return '';
+      if(p.is_free) return 'Бесплатно';
+      const rub=Number(p.rub_final);
+      if(Number.isFinite(rub)) return `${rub.toLocaleString('ru-RU')} ₽`;
+      if(p.rub_final_formatted) return p.rub_final_formatted;
+      if(p.final_formatted) return p.final_formatted;
+      return `${(Number(p.final||0)/100).toFixed(2)} ${escapeHtml(p.currency||'')}`;
+    }
+
+    function formattedInitial(p){
+      if(!p || p.available === false) return '';
+      const rub=Number(p.rub_initial);
+      if(Number.isFinite(rub)) return `${rub.toLocaleString('ru-RU')} ₽`;
+      if(p.rub_initial_formatted) return p.rub_initial_formatted;
+      if(p.initial_formatted) return p.initial_formatted;
+      return `${(Number(p.initial||0)/100).toFixed(2)} ${escapeHtml(p.currency||'')}`;
+    }
+
+    function priceBlock(p, regionLabel, item){
+      if(!p || p.available === false){
+        return `<div class="region"><div class="region-name">${regionLabel}</div><div class="unavailable">Недоступно в регионе</div></div>`;
+      }
+
+      if(p.is_free){
+        return `
+          <div class="region">
+            <div class="region-head"><span class="region-name">${regionLabel}</span></div>
+            <div class="price"><span class="free-label">Бесплатно</span></div>
+          </div>`;
+      }
+
+      const discounted = Number(p.discount_percent||0) > 0 && (Number(p.rub_initial||p.initial||0) > Number(p.rub_final||p.final||0));
+      const priceHtml = discounted
+        ? `<span class="old">${formattedInitial(p)}</span><span class="new">${formattedPrice(p)}</span><span class="discount">-${p.discount_percent}%</span>`
+        : `<span class="regular">${formattedPrice(p)}</span>`;
+      const payload = encodeURIComponent(JSON.stringify({
+        appid:item.appid,
+        packageid:item.packageid ?? null,
+        name:item.name,
+        region:regionLabel,
+        price:formattedPrice(p),
+        price_rub:p.price_rub ?? p.rub_final ?? null,
+        type:item.itemType || 'game'
+      }));
+      return `
+        <div class="region">
+          <div class="region-head"><span class="region-name">${regionLabel}</span></div>
+          <div class="price">${priceHtml}</div>
+          <button class="buy" data-cart="${payload}">Добавить в корзину</button>
+        </div>`;
+    }
+
+    function dlcHtml(d){
+      const item = {...d, itemType:'dlc'};
+      return `
+        <article class="modal-item">
+          ${d.image ? `<img class="modal-item-cover" loading="lazy" src="${escapeHtml(d.image)}" alt="${escapeHtml(d.name)}" onerror="this.style.display='none'">` : ''}
+          <div class="modal-item-body">
+            <div class="modal-item-title">${escapeHtml(d.name)}</div>
+            ${priceBlock(d.ua,'🇺🇦 Украина',item)}
+            ${priceBlock(d.tr,'🇹🇷 Турция',item)}
+          </div>
+        </article>`;
+    }
+
+    function currencyCoinIcon(){
+      return `<svg class="currency-coins" viewBox="0 0 48 48" aria-hidden="true">
+        <ellipse cx="19" cy="31" rx="12" ry="5" fill="none" stroke="currentColor" stroke-width="3"/>
+        <path d="M7 31v6c0 3 5 6 12 6s12-3 12-6v-6" fill="none" stroke="currentColor" stroke-width="3"/>
+        <ellipse cx="29" cy="18" rx="12" ry="5" fill="none" stroke="currentColor" stroke-width="3"/>
+        <path d="M17 18v6c0 3 5 6 12 6s12-3 12-6v-6" fill="none" stroke="currentColor" stroke-width="3"/>
+      </svg>`;
+    }
+
+    function fallbackDenomination(name=''){
+      let text=String(name||'')
+        .replace(/\s*[-–—]\s*(?:[$€£₴₺¥₽]\s*)?\d[\d\s.,]*(?:\s*(?:[$€£₴₺¥₽]|USD|UAH|TRY|TL|EUR|GBP))?\s*$/i,'')
+        .trim();
+
+      const amount='(\\d{1,3}(?:[\\s\\u00A0]\\d{3})+|\\d+)';
+      const unit='(?:FC\\s*Points?|FIFA\\s*Points?|COD\\s*Points?|Call\\s+of\\s+Duty\\s+Points?|V[\\s-]*Bucks?|Minecoins?|Robux|Apex\\s+Coins?|Helix\\s+Credits?|R6\\s+Credits?|Points?|Coins?|Credits?|Tokens?|Gems?|Crystals?|Shards?|Diamonds?|Platinum|VC)';
+
+      let m=text.match(new RegExp(unit+'\\s*(?:x|×|:|-)?\\s*'+amount+'\\b','i'));
+      if(m){
+        const n=Number(m[1].replace(/\D/g,''));
+        if(Number.isFinite(n)) return n;
+      }
+
+      m=text.match(new RegExp('\\b'+amount+'\\s*(?:x|×|:|-)?\\s*'+unit+'\\b','i'));
+      if(m){
+        const n=Number(m[1].replace(/\D/g,''));
+        if(Number.isFinite(n)) return n;
+      }
+
+      const matches=text.match(/\d{1,3}(?:[\s\u00A0]\d{3})+|\d+/g);
+      if(!matches?.length) return null;
+
+      const n=Number(matches[matches.length-1].replace(/\D/g,''));
+      return Number.isFinite(n) ? n : null;
+    }
+
+    function currencyRegionBlock(p, regionLabel, item){
+      if(!p || p.available === false){
+        return `<div class="currency-region-card">
+          <div class="currency-region-name">${regionLabel}</div>
+          <div class="currency-unavailable">Недоступно в регионе</div>
+        </div>`;
+      }
+
+      if(p.is_free){
+        return `<div class="currency-region-card">
+          <div class="currency-region-name">${regionLabel}</div>
+          <div class="currency-region-price"><span class="free-label">Бесплатно</span></div>
+        </div>`;
+      }
+
+      const discounted=Number(p.discount_percent||0)>0 && (Number(p.rub_initial||p.initial||0)>Number(p.rub_final||p.final||0));
+      const priceHtml=discounted
+        ? `<span class="old">${formattedInitial(p)}</span><span class="new">${formattedPrice(p)}</span><span class="discount">-${p.discount_percent}%</span>`
+        : `<span class="regular">${formattedPrice(p)}</span>`;
+
+      const payload=encodeURIComponent(JSON.stringify({
+        appid:item.appid,
+        packageid:item.packageid ?? null,
+        name:item.name,
+        region:regionLabel,
+        price:formattedPrice(p),
+        price_rub:p.price_rub ?? p.rub_final ?? null,
+        type:'currency'
+      }));
+
+      return `<div class="currency-region-card">
+        <div class="currency-region-name">${regionLabel}</div>
+        <div class="currency-region-price">${priceHtml}</div>
+        <button class="currency-buy" data-cart="${payload}">🛒 Добавить в корзину</button>
+      </div>`;
+    }
+
+    function currencyOptionHtml(group,opt,index){
+      const item={
+        appid:group.appid,
+        packageid:opt.packageid,
+        name:opt.name,
+        itemType:'currency'
+      };
+      const denomination=opt.denomination ?? fallbackDenomination(opt.name);
+      const denominationText=denomination!=null
+        ? Number(denomination).toLocaleString('ru-RU')
+        : '—';
+      const label=group.currency_label || 'Игровая валюта';
+
+      return `
+        <div class="currency-option tone-${index%6}">
+          <div class="currency-denom-card">
+            ${currencyCoinIcon()}
+            <div class="currency-denom-text">
+              <div class="currency-denom-number">${escapeHtml(denominationText)}</div>
+              <div class="currency-denom-label">${escapeHtml(label)}</div>
+            </div>
+          </div>
+          ${currencyRegionBlock(opt.ua,'🇺🇦 UA Украина',item)}
+          ${currencyRegionBlock(opt.tr,'🇹🇷 TR Турция',item)}
+        </div>`;
+    }
+
+    function mergeCurrencyGroupsForDisplay(groups){
+      const map=new Map();
+      const order=[];
+
+      for(const group of (groups||[])){
+        const label=String(group.currency_label || group.name || 'currency').trim().toLowerCase();
+        const key=label.replace(/[^a-z0-9а-яё]+/gi,' ').trim();
+
+        if(!map.has(key)){
+          map.set(key,{...group,options:[]});
+          order.push(key);
+        }
+
+        const target=map.get(key);
+        const existing=new Map(
+          (target.options||[]).map(opt=>[
+            Number(opt.packageid)||String(opt.name||''),
+            opt
+          ])
+        );
+
+        for(const opt of (group.options||[])){
+          const optKey=Number(opt.packageid)||String(opt.name||'');
+          if(!existing.has(optKey)){
+            const copy={...opt};
+            copy.denomination=copy.denomination ?? fallbackDenomination(copy.name);
+            target.options.push(copy);
+            existing.set(optKey,copy);
+          }else{
+            const current=existing.get(optKey);
+            if(!current.ua?.available && opt.ua?.available) current.ua=opt.ua;
+            if(!current.tr?.available && opt.tr?.available) current.tr=opt.tr;
+          }
+        }
+      }
+
+      return order.map(key=>{
+        const group=map.get(key);
+        group.options=[...(group.options||[])].sort((a,b)=>{
+          const da=Number(a.denomination ?? fallbackDenomination(a.name));
+          const db=Number(b.denomination ?? fallbackDenomination(b.name));
+          const av=Number.isFinite(da);
+          const bv=Number.isFinite(db);
+          if(av && bv && da!==db) return da-db;
+          if(av && !bv) return -1;
+          if(!av && bv) return 1;
+          return String(a.name||'').localeCompare(String(b.name||''),'ru',{numeric:true,sensitivity:'base'});
+        });
+        group.option_count=group.options.length;
+        return group;
+      });
+    }
+
+
+    function currencyGroupHtml(group){
+      const count=Number(group.option_count||0);
+      const label=group.currency_label || 'Игровая валюта';
+      const gameName=group.game_name || '';
+
+      // Защитная сортировка и в HTML.
+      // Даже если в старом data.js порядок оказался неправильным,
+      // на странице всё равно будет строго по числовому номиналу.
+      const sortedOptions=[...(group.options||[])].sort((a,b)=>{
+        const da=Number(a.denomination ?? fallbackDenomination(a.name));
+        const db=Number(b.denomination ?? fallbackDenomination(b.name));
+
+        const aValid=Number.isFinite(da);
+        const bValid=Number.isFinite(db);
+
+        if(aValid && bValid && da!==db) return da-db;
+        if(aValid && !bValid) return -1;
+        if(!aValid && bValid) return 1;
+
+        return String(a.name||'').localeCompare(String(b.name||''),'ru',{numeric:true,sensitivity:'base'});
+      });
+
+      return `
+        <section class="currency-group">
+          <div class="currency-hero">
+            <div class="currency-hero-info">
+              <div class="currency-kicker">Игровая валюта</div>
+              <div class="currency-group-title">${escapeHtml(group.name)}</div>
+              <div class="currency-group-count">Вариантов покупки: ${count.toLocaleString('ru-RU')}</div>
+              <div class="currency-badges">
+                <span class="currency-badge primary">◈ ${escapeHtml(label)}</span>
+                ${gameName ? `<span class="currency-badge">🎮 ${escapeHtml(gameName)}</span>` : ''}
+                <span class="currency-badge">${count.toLocaleString('ru-RU')} ${count===1?'номинал':'номиналов'}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="currency-table-head">
+            <div>Номинал</div>
+            <div>UA Украина</div>
+            <div>TR Турция</div>
+          </div>
+
+          <div class="currency-options">
+            ${sortedOptions.map((opt,index)=>currencyOptionHtml(group,opt,index)).join('')}
+          </div>
+        </section>`;
+    }
+
+
+    const RU_TO_EN_KEYS = {
+      'й':'q','ц':'w','у':'e','к':'r','е':'t','н':'y','г':'u','ш':'i','щ':'o','з':'p','х':'[','ъ':']',
+      'ф':'a','ы':'s','в':'d','а':'f','п':'g','р':'h','о':'j','л':'k','д':'l','ж':';','э':"'",
+      'я':'z','ч':'x','с':'c','м':'v','и':'b','т':'n','ь':'m','б':',','ю':'.'
+    };
+    const EN_TO_RU_KEYS = Object.fromEntries(Object.entries(RU_TO_EN_KEYS).map(([k,v])=>[v,k]));
+
+    function switchKeyboardLayout(value, map){
+      return [...String(value||'').toLowerCase()].map(ch => map[ch] ?? ch).join('');
+    }
+
+    function normalizeSearchText(value=''){
+      return String(value)
+        .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+        .replace(/[™®©]/g,' ')
+        .replace(/&/g,' and ')
+        .replace(/\+/g,' plus ')
+        .toLowerCase()
+        .replace(/[^a-z0-9а-яё]+/gi,' ')
+        .replace(/\s+/g,' ')
+        .trim();
+    }
+
+    function queryVariants(value=''){
+      const direct = normalizeSearchText(value);
+      const ruToEn = normalizeSearchText(switchKeyboardLayout(value, RU_TO_EN_KEYS));
+      const enToRu = normalizeSearchText(switchKeyboardLayout(value, EN_TO_RU_KEYS));
+      const out = new Set();
+
+      [direct, ruToEn, enToRu].forEach(v=>{
+        if(!v) return;
+        out.add(v);
+        out.add(v.replace(/\s+/g,''));
+
+        const romanToArabic = {i:'1',ii:'2',iii:'3',iv:'4',v:'5',vi:'6',vii:'7',viii:'8',ix:'9',x:'10'};
+        const arabicToRoman = Object.fromEntries(Object.entries(romanToArabic).map(([k,n])=>[n,k]));
+        const words=v.split(' ');
+        out.add(words.map(w=>romanToArabic[w]||w).join(' '));
+        out.add(words.map(w=>arabicToRoman[w]||w).join(' '));
+      });
+
+      return [...out].filter(Boolean);
+    }
+
+    function itemSearchText(item){
+      // Новый оптимизированный data.js уже содержит готовую нормализованную строку поиска.
+      if(typeof item.search_text === 'string') return item.search_text;
+
+      // Совместимость со старым большим data.js.
+      const terms = Array.isArray(item.search_terms) ? item.search_terms : [];
+      return normalizeSearchText([item.name||'', item.appid||'', item.packageid||'', ...terms].join(' '));
+    }
+
+    function searchScore(item, variants){
+      if(!variants.length) return 1;
+      const name = typeof item.search_name === 'string'
+        ? item.search_name
+        : normalizeSearchText(item.name || '');
+      const compactName = name.replace(/\s+/g,'');
+      const hay = itemSearchText(item);
+      const compactHay = hay.replace(/\s+/g,'');
+
+      let best = 0;
+      for(const q of variants){
+        const qc = q.replace(/\s+/g,'');
+        if(name === q || compactName === qc) best = Math.max(best,100);
+        else if(name.startsWith(q) || compactName.startsWith(qc)) best = Math.max(best,90);
+        else if(name.includes(q) || compactName.includes(qc)) best = Math.max(best,80);
+        else if(hay.includes(q) || compactHay.includes(qc)) best = Math.max(best,70);
+        else {
+          const words = q.split(' ').filter(Boolean);
+          if(words.length && words.every(w => hay.includes(w))) best = Math.max(best,60);
+        }
+      }
+      return best;
+    }
+
+
+
+    function gameInfoHtml(g){
+      const genres = Array.isArray(g.genres) ? g.genres.filter(Boolean) : [];
+      const lang = g.russian_label || (
+        g.russian?.full_audio ? 'Рус (Озвучка)' :
+        g.russian?.subtitles ? 'Рус (Субтитры)' :
+        g.russian?.supported ? 'Русский язык' :
+        'Русского языка нет'
+      );
+
+      const langClass = g.russian_status_class || (g.russian?.supported ? 'ru' : 'no-ru');
+      const genreChips = genres.slice(0,4).map(x =>
+        `<span class="info-chip genre">${escapeHtml(x)}</span>`
+      ).join('');
+
+      return `<div class="info-line">
+        <span class="info-chip ${langClass}">${escapeHtml(lang)}</span>
+        ${genreChips}
+      </div>`;
+    }
+
+    function populateGenres(){
+      if(!genreFilter) return;
+      const selected = genreFilter.value;
+      const genres = [...new Set(
+        (DATA.games||[]).flatMap(g => Array.isArray(g.genres) ? g.genres : [])
+          .filter(Boolean)
+      )].sort((a,b)=>a.localeCompare(b,'ru',{sensitivity:'base'}));
+
+      genreFilter.innerHTML =
+        `<option value="">Все жанры</option>` +
+        genres.map(g=>`<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join('');
+
+      if(genres.includes(selected)) genreFilter.value=selected;
+    }
+
+
+    function cardHtml(g){
+      const rating = g.rating_percent != null
+        ? `${g.rating_percent}% положительных${g.reviews ? ` · ${Number(g.reviews).toLocaleString('ru-RU')} отзывов` : ''}`
+        : 'Рейтинг ещё не сформирован';
+      const sale = g.has_discount ? `<div class="sale-badge">СКИДКА</div>` : (g.has_any_discount ? `<div class="sale-badge">DLC СО СКИДКОЙ</div>` : '');
+      const gameItem = {...g,itemType:'game'};
+      return `
+        <article class="card" data-id="${g.appid}" data-search="${escapeHtml(g.search_text || (g.search_terms||[]).join(' '))}">
+          <div class="cover">
+            ${g.image ? `<img loading="lazy" src="${escapeHtml(g.image)}" alt="">` : ''}
+            ${(g.is_preorder || g.coming_soon) ? `<div class="preorder-badge">ПРЕДЗАКАЗ</div>` : ''}
+            ${sale}
+          </div>
+          <div class="body">
+            <h2 class="title">${escapeHtml(g.name)}</h2>
+            <div class="meta">${rating}${g.release_date ? ` · ${escapeHtml(g.release_date)}` : ''}</div>
+            ${gameInfoHtml(g)}
+            ${priceBlock(g.ua,'🇺🇦 Украина',gameItem)}
+            ${priceBlock(g.tr,'🇹🇷 Турция',gameItem)}
+            ${(g.dlc_count || g.currency_count) ? `
+              <div class="content-btns">
+                ${g.dlc_count ? `<button class="content-open-btn" data-modal-kind="dlc" data-game-id="${g.appid}">DLC / Дополнения · ${g.dlc_count}</button>` : ''}
+                ${g.currency_count ? `<button class="content-open-btn currency" data-modal-kind="currency" data-game-id="${g.appid}">Игровая валюта · ${g.currency_count}</button>` : ''}
+              </div>` : ''}
+          </div>
+        </article>`;
+    }
+
+    function matchesSearch(g, variants){
+      if(!variants.length) return true;
+
+      // В оптимизированном каталоге search_text игры уже включает название/ID
+      // самой игры, её DLC и игровой валюты. Один быстрый поиск вместо обхода
+      // десятков вложенных объектов на каждое нажатие клавиши.
+      if(typeof g.search_text === 'string') return searchScore(g,variants) > 0;
+
+      // Совместимость со старым data.js.
+      if(searchScore(g,variants) > 0) return true;
+      if((g.dlc || []).some(d => searchScore(d,variants) > 0)) return true;
+      return (g.currency_groups || []).some(group => {
+        if(searchScore(group,variants) > 0) return true;
+        return (group.options || []).some(opt => searchScore(opt,variants) > 0);
+      });
+    }
+
+
+    function updateResultCount(filteredCount, shownCount){
+      const total = (DATA.games || []).length;
+      const el = document.getElementById('resultCount');
+      if(!el) return;
+
+      const hasQuery = search.value.trim().length > 0;
+      const label = mode === 'discounts'
+        ? `Найдено <span>${Number(filteredCount).toLocaleString('ru-RU')}</span> из ${Number(total).toLocaleString('ru-RU')} игр · фильтр: скидки`
+        : mode === 'preorders'
+          ? `Найдено <span>${Number(filteredCount).toLocaleString('ru-RU')}</span> из ${Number(total).toLocaleString('ru-RU')} игр · фильтр: предзаказы`
+          : `Найдено <span>${Number(filteredCount).toLocaleString('ru-RU')}</span> из ${Number(total).toLocaleString('ru-RU')} игр`;
+
+      let extra = ` · на странице: ${Number(shownCount).toLocaleString('ru-RU')}`;
+      if(genreFilter?.value) extra += ` · жанр: ${escapeHtml(genreFilter.value)}`;
+      if(hasQuery) extra += ' · поиск активен';
+      el.innerHTML = label + extra;
+    }
+
+    function updatePager(totalItems){
+      const pages=Math.max(1,Math.ceil(totalItems/PAGE_SIZE));
+      if(currentPage>pages) currentPage=pages;
+      const info=document.getElementById('pagerInfo');
+      const prev=document.getElementById('prevPageBtn');
+      const next=document.getElementById('nextPageBtn');
+      const wrap=document.getElementById('catalogPager');
+
+      if(info) info.textContent=`Страница ${currentPage.toLocaleString('ru-RU')} из ${pages.toLocaleString('ru-RU')}`;
+      if(prev) prev.disabled=currentPage<=1;
+      if(next) next.disabled=currentPage>=pages;
+      if(wrap) wrap.style.display=totalItems ? 'flex' : 'none';
+    }
+
+    function render(resetPage=false){
+      if(resetPage) currentPage=1;
+
+      const variants = queryVariants(search.value.trim());
+      const selectedGenre = genreFilter?.value || '';
+      let items = (DATA.games || []).filter(g => {
+        if(mode === 'discounts' && !g.has_any_discount) return false;
+        if(mode === 'preorders' && !(g.is_preorder || g.coming_soon)) return false;
+        if(selectedGenre && !(g.genres || []).includes(selectedGenre)) return false;
+        return matchesSearch(g,variants);
+      });
+
+      if(variants.length){
+        items.sort((a,b)=>{
+          const scoreA=searchScore(a,variants);
+          const scoreB=searchScore(b,variants);
+          if(scoreA!==scoreB) return scoreB-scoreA;
+          return (a.name||'').localeCompare(b.name||'','ru',{sensitivity:'base'});
+        });
+      } else if(!sortAsc) {
+        // Python уже сохраняет игры по алфавиту. Не сортируем 63k объектов заново.
+        items.reverse();
+      }
+
+      lastFilteredItems=items;
+      const pages=Math.max(1,Math.ceil(items.length/PAGE_SIZE));
+      if(currentPage>pages) currentPage=pages;
+      const start=(currentPage-1)*PAGE_SIZE;
+      const pageItems=items.slice(start,start+PAGE_SIZE);
+
+      catalog.innerHTML = pageItems.length
+        ? pageItems.map(cardHtml).join('')
+        : `<div class="empty">Ничего не найдено</div>`;
+
+      updateResultCount(items.length,pageItems.length);
+      updatePager(items.length);
+      bindDynamic();
+    }
+
+    function goToPage(delta){
+      const pages=Math.max(1,Math.ceil(lastFilteredItems.length/PAGE_SIZE));
+      const target=Math.min(pages,Math.max(1,currentPage+delta));
+      if(target===currentPage) return;
+      currentPage=target;
+      render(false);
+      document.getElementById('catalog')?.scrollIntoView({behavior:'smooth',block:'start'});
+    }
+
+
+    function getGameById(appid){
+      return GAME_BY_ID.get(Number(appid));
+    }
+
+    async function openContentModal(game, kind){
+      if(!game) return;
+      const modal=document.getElementById('contentModal');
+      const title=document.getElementById('contentModalTitle');
+      const body=document.getElementById('contentModalBody');
+      if(!modal || !title || !body) return;
+
+      title.textContent=kind==='currency'
+        ? `${game.name} — игровая валюта`
+        : `${game.name} — DLC / Дополнения`;
+      body.innerHTML='<div class="catalog-loading">Загрузка…</div>';
+      modal.classList.add('open');
+      modal.setAttribute('aria-hidden','false');
+      document.body.classList.add('modal-open');
+
+      try{
+        // В оптимизированном варианте тяжёлые данные DLC/валюты лежат отдельно
+        // и загружаются только при первом открытии модального окна.
+        let fullGame=game;
+        if((game.dlc_count || game.currency_count) && (!game.dlc && !game.currency_groups)){
+          const details=await ensureDetailsLoaded();
+          const extra=details[String(game.appid)] || {};
+          fullGame={...game,...extra};
+        }
+
+        if(kind==='currency'){
+          const currencyGroups=mergeCurrencyGroupsForDisplay(fullGame.currency_groups||[]);
+          body.innerHTML=currencyGroups.length
+            ? currencyGroups.map(currencyGroupHtml).join('')
+            : '<div class="empty">Игровая валюта не найдена</div>';
+        }else{
+          body.innerHTML=(fullGame.dlc||[]).length
+            ? `<div class="modal-grid">${(fullGame.dlc||[]).map(dlcHtml).join('')}</div>`
+            : '<div class="empty">Дополнения не найдены</div>';
+        }
+        bindCartButtons(modal);
+      }catch(err){
+        body.innerHTML='<div class="empty">Не удалось загрузить данные дополнений. Проверьте файл steam_catalog_details.js.</div>';
+        console.error(err);
+      }
+    }
+
+
+    function closeContentModal(){
+      const modal=document.getElementById('contentModal');
+      if(!modal) return;
+      modal.classList.remove('open');
+      modal.setAttribute('aria-hidden','true');
+      document.body.classList.remove('modal-open');
+    }
+
+    function cartItemKey(item){
+      return `${item.type}:${item.packageid || item.appid}:${item.region}`;
+    }
+
+    function isItemInCart(item){
+      const key=cartItemKey(item);
+      return cart.some(x=>x.key===key);
+    }
+
+    function updateCartButtonState(btn,item){
+      const active=isItemInCart(item);
+      btn.classList.toggle('in-cart',active);
+      btn.setAttribute('aria-pressed',active?'true':'false');
+
+      if(btn.classList.contains('currency-buy')){
+        btn.textContent=active ? '✓ В корзине' : '🛒 Добавить в корзину';
+      }else{
+        btn.textContent=active ? '✓ В корзине' : 'Добавить в корзину';
+      }
+    }
+
+    function syncCartButtons(root=document){
+      root.querySelectorAll('[data-cart]').forEach(btn=>{
+        try{
+          const item=JSON.parse(decodeURIComponent(btn.dataset.cart));
+          updateCartButtonState(btn,item);
+        }catch(e){}
+      });
+    }
+
+    function bindCartButtons(root=document){
+      root.querySelectorAll('[data-cart]').forEach(btn=>{
+        btn.onclick=()=>{
+          const item=JSON.parse(decodeURIComponent(btn.dataset.cart));
+          toggleCartItem(item);
+        };
+      });
+      syncCartButtons(root);
+    }
+
+
+    function bindDynamic(){
+      document.querySelectorAll('[data-modal-kind]').forEach(btn=>{
+        btn.onclick=()=>{
+          const game=getGameById(btn.dataset.gameId);
+          openContentModal(game,btn.dataset.modalKind);
+        };
+      });
+      bindCartButtons(document);
+    }
+
+
+    // Мобильная шапка: при прокрутке вниз оставляем только компактную строку,
+    // при прокрутке вверх или возврате к началу снова показываем фильтры.
+    const topbar=document.querySelector('.topbar');
+    let mobileHeaderLastY=window.scrollY;
+    let mobileHeaderRaf=0;
+
+    function updateMobileHeader(){
+      mobileHeaderRaf=0;
+      if(!topbar) return;
+      if(window.innerWidth>650){
+        topbar.classList.remove('mobile-collapsed');
+        mobileHeaderLastY=window.scrollY;
+        return;
+      }
+
+      const y=window.scrollY;
+      const delta=y-mobileHeaderLastY;
+      const searchFocused=document.activeElement===search;
+      const overlayOpen=document.body.classList.contains('cart-open') || document.body.classList.contains('modal-open');
+
+      if(y<70 || searchFocused || overlayOpen){
+        topbar.classList.remove('mobile-collapsed');
+      }else if(delta>6 && y>120){
+        topbar.classList.add('mobile-collapsed');
+      }else if(delta<-6){
+        topbar.classList.remove('mobile-collapsed');
+      }
+      mobileHeaderLastY=y;
+    }
+
+    window.addEventListener('scroll',()=>{
+      if(!mobileHeaderRaf) mobileHeaderRaf=requestAnimationFrame(updateMobileHeader);
+    },{passive:true});
+    window.addEventListener('resize',updateMobileHeader,{passive:true});
+    topbar?.addEventListener('click',()=>{
+      if(window.innerWidth<=650 && topbar.classList.contains('mobile-collapsed')){
+        topbar.classList.remove('mobile-collapsed');
+      }
+    });
+
+    document.querySelectorAll('.tab').forEach(btn=>{
+      btn.onclick=()=>{
+        document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+        btn.classList.add('active');
+        mode=btn.dataset.mode;
+        render(true);
+      };
+    });
+
+    // Не запускаем фильтрацию десятков тысяч записей на каждый символ мгновенно.
+    search.addEventListener('input',()=>{
+      clearTimeout(searchTimer);
+      searchTimer=setTimeout(()=>render(true),180);
+    });
+    genreFilter?.addEventListener('change',()=>render(true));
+    document.getElementById('sortBtn').onclick=(e)=>{
+      sortAsc=!sortAsc;
+      e.currentTarget.textContent=sortAsc?'По названию ↑':'По названию ↓';
+      render(true);
+    };
+    document.getElementById('prevPageBtn')?.addEventListener('click',()=>goToPage(-1));
+    document.getElementById('nextPageBtn')?.addEventListener('click',()=>goToPage(1));
+
+    const CART_KEY='steam_ua_tr_cart_v2';
+    const TELEGRAM_USERNAME='nohchinohchiev';
+    const WHATSAPP_PHONE='79899320930';
+    const DISCOUNT_PER_EXTRA_ITEM_RUB = 500;
+    let cart=JSON.parse(localStorage.getItem(CART_KEY)||'[]');
+
+    function cartDiscountRub(){
+      return Math.max(0, cart.length - 1) * DISCOUNT_PER_EXTRA_ITEM_RUB;
+    }
+
+    function rubPriceOf(item){
+      // На следующем этапе Python сможет положить сюда готовую цену магазина в ₽.
+      // Уже сейчас корзина автоматически посчитает итог, если поле price_rub присутствует.
+      const n = Number(item.price_rub);
+      return Number.isFinite(n) && n > 0 ? n : null;
+    }
+
+    function animateCartButton(){
+      const btn=document.getElementById('cartBtn');
+      if(!btn) return;
+      btn.classList.remove('bump');
+      void btn.offsetWidth;
+      btn.classList.add('bump');
+      setTimeout(()=>btn.classList.remove('bump'),500);
+    }
+
+    function buildOrderText(){
+      if(!cart.length) return '';
+
+      const rubPrices=cart.map(rubPriceOf);
+      const canTotal=rubPrices.every(v=>v!==null);
+      const subtotal=canTotal ? rubPrices.reduce((a,b)=>a+b,0) : null;
+      const discount=cartDiscountRub();
+      const finalTotal=canTotal ? Math.max(0, subtotal-discount) : null;
+
+      const lines=[
+        '🎮 НОВЫЙ ЗАКАЗ STEAM',
+        '',
+        'Позиции заказа:'
+      ];
+
+      cart.forEach((item,index)=>{
+        lines.push(
+          `${index+1}. ${item.type==='currency'?'Игровая валюта':(item.type==='dlc'?'DLC':'Игра')}: ${item.name}`,
+          `   Регион: ${item.region}`,
+          `   Цена: ${item.price}`,
+          ''
+        );
+      });
+
+      lines.push(`Количество позиций: ${cart.length}`);
+
+      if(canTotal){
+        lines.push(`Сумма: ${subtotal.toLocaleString('ru-RU')} ₽`);
+      }
+
+      if(discount>0){
+        lines.push(`Скидка за количество: −${discount.toLocaleString('ru-RU')} ₽`);
+      }else{
+        lines.push('Скидка за количество: 0 ₽');
+      }
+
+      if(canTotal){
+        lines.push(`ИТОГО: ${finalTotal.toLocaleString('ru-RU')} ₽`);
+      }
+
+      lines.push('', 'Пожалуйста, подтвердите заказ.');
+      return lines.join('\n');
+    }
+
+    function setCheckoutStatus(text){
+      const el=document.getElementById('checkoutStatus');
+      if(!el) return;
+      el.textContent=text;
+      if(text) setTimeout(()=>{ if(el.textContent===text) el.textContent=''; },2600);
+    }
+
+    function openWhatsAppOrder(){
+      if(!cart.length){ setCheckoutStatus('Корзина пуста'); return; }
+      const text=buildOrderText();
+      window.open(`https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(text)}`,'_blank','noopener');
+    }
+
+    function openTelegramOrder(){
+      if(!cart.length){ setCheckoutStatus('Корзина пуста'); return; }
+      const text=buildOrderText();
+      window.open(`https://t.me/${TELEGRAM_USERNAME}?text=${encodeURIComponent(text)}`,'_blank','noopener');
+    }
+
+    async function copyOrder(){
+      if(!cart.length){ setCheckoutStatus('Корзина пуста'); return; }
+      const text=buildOrderText();
+      try{
+        await navigator.clipboard.writeText(text);
+        setCheckoutStatus('Заказ скопирован');
+      }catch(e){
+        const ta=document.createElement('textarea');
+        ta.value=text;
+        ta.style.position='fixed';
+        ta.style.opacity='0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+        setCheckoutStatus('Заказ скопирован');
+      }
+    }
+
+    function clearCart(){
+      if(!cart.length){ setCheckoutStatus('Корзина уже пуста'); return; }
+      if(!confirm('Очистить всю корзину?')) return;
+      cart=[];
+      saveCart();
+      setCheckoutStatus('Корзина очищена');
+    }
+
+    function saveCart(){
+      localStorage.setItem(CART_KEY,JSON.stringify(cart));
+      const countEl=document.getElementById('cartCount');
+      const cartBtn=document.getElementById('cartBtn');
+      if(countEl) countEl.textContent=cart.length;
+      if(cartBtn) cartBtn.classList.toggle('has-items',cart.length>0);
+      renderCart();
+      syncCartButtons(document);
+    }
+
+    function toggleCartItem(item){
+      const key=cartItemKey(item);
+      const index=cart.findIndex(x=>x.key===key);
+
+      if(index>=0){
+        // Повторное нажатие: убираем эту конкретную позицию из корзины.
+        cart.splice(index,1);
+      }else{
+        // Первое нажатие: добавляем и анимируем основную кнопку корзины.
+        cart.push({...item,key});
+        animateCartButton();
+      }
+
+      saveCart();
+    }
+
+    function renderCart(){
+      const body=document.getElementById('cartBody');
+      const discount=cartDiscountRub();
+      const rubPrices=cart.map(rubPriceOf);
+      const canTotal=cart.length>0 && rubPrices.every(v=>v!==null);
+      const subtotal=canTotal ? rubPrices.reduce((a,b)=>a+b,0) : null;
+      const finalTotal=canTotal ? Math.max(0, subtotal-discount) : null;
+
+      const itemsHtml = cart.length ? cart.map((x,i)=>`
+        <div class="cart-item">
+          <button class="remove" data-remove="${i}">Удалить</button>
+          <strong>${escapeHtml(x.name)}</strong><br>
+          <small>${escapeHtml(x.type==='currency'?'Игровая валюта':(x.type==='dlc'?'DLC':'Игра'))} · ${escapeHtml(x.region)} · ${escapeHtml(x.price)}</small>
+        </div>`).join('') : `<div class="empty">Корзина пуста</div>`;
+
+      const summary = cart.length ? `
+        <div class="cart-summary">
+          <div class="cart-row"><span>Позиций</span><strong>${cart.length}</strong></div>
+          ${canTotal ? `<div class="cart-row"><span>Сумма</span><strong>${subtotal.toLocaleString('ru-RU')} ₽</strong></div>` : ''}
+          <div class="cart-row cart-discount"><span>Скидка за количество</span><span>−${discount.toLocaleString('ru-RU')} ₽</span></div>
+          ${canTotal ? `<div class="cart-row cart-total"><span>Итого</span><span>${finalTotal.toLocaleString('ru-RU')} ₽</span></div>` : ''}
+          <div class="cart-note">
+            1 позиция — без скидки; 2 — −500 ₽; 3 — −1 000 ₽; 4 — −1 500 ₽.
+            Каждая следующая игра или DLC увеличивает скидку ещё на 500 ₽.
+          </div>
+          <div class="checkout-actions">
+            <button class="checkout-btn telegram" id="telegramOrderBtn">Оформить через Telegram</button>
+            <button class="checkout-btn whatsapp" id="whatsappOrderBtn">Оформить через WhatsApp</button>
+            <button class="checkout-btn copy" id="copyOrderBtn">Скопировать заказ</button>
+            <button class="checkout-btn clear" id="clearCartBtn">Очистить корзину</button>
+          </div>
+          <div class="checkout-status" id="checkoutStatus"></div>
+        </div>` : '';
+
+      body.innerHTML=itemsHtml+summary;
+
+      body.querySelectorAll('[data-remove]').forEach(b=>{
+        b.onclick=()=>{cart.splice(Number(b.dataset.remove),1);saveCart();}
+      });
+
+      document.getElementById('telegramOrderBtn')?.addEventListener('click',openTelegramOrder);
+      document.getElementById('whatsappOrderBtn')?.addEventListener('click',openWhatsAppOrder);
+      document.getElementById('copyOrderBtn')?.addEventListener('click',copyOrder);
+      document.getElementById('clearCartBtn')?.addEventListener('click',clearCart);
+    }
+
+    function openCart(){
+      const drawer=document.getElementById('drawer');
+      const backdrop=document.getElementById('cartBackdrop');
+      drawer?.classList.add('open');
+      drawer?.setAttribute('aria-hidden','false');
+      backdrop?.classList.add('open');
+      backdrop?.setAttribute('aria-hidden','false');
+      document.body.classList.add('cart-open');
+    }
+
+    function closeCart(){
+      const drawer=document.getElementById('drawer');
+      const backdrop=document.getElementById('cartBackdrop');
+      drawer?.classList.remove('open');
+      drawer?.setAttribute('aria-hidden','true');
+      backdrop?.classList.remove('open');
+      backdrop?.setAttribute('aria-hidden','true');
+      document.body.classList.remove('cart-open');
+    }
+
+    document.getElementById('cartBtn')?.addEventListener('click',openCart);
+    document.getElementById('closeCart')?.addEventListener('click',closeCart);
+    document.getElementById('cartBackdrop')?.addEventListener('click',closeCart);
+
+    document.getElementById('contentModalClose')?.addEventListener('click',closeContentModal);
+    document.getElementById('contentModal')?.addEventListener('click',(e)=>{
+      if(e.target.id==='contentModal') closeContentModal();
+    });
+    document.addEventListener('keydown',(e)=>{
+      if(e.key==='Escape'){
+        closeContentModal();
+        closeCart();
+      }
+    });
+
+    const s=DATA.stats||{};
+    stats.textContent=`Каталог: ${Number(s.games_in_catalog||0).toLocaleString('ru-RU')} игр · ${Number(s.dlc_in_catalog||0).toLocaleString('ru-RU')} DLC · ${Number(s.currency_options_in_catalog||0).toLocaleString('ru-RU')} вариантов игровой валюты · ${Number(s.preorder_games||0).toLocaleString('ru-RU')} предзаказов · обновлено ${DATA.generated_at ? new Date(DATA.generated_at).toLocaleString('ru-RU') : '—'}`;
+    populateGenres();
+    saveCart();
+    render();
+  </script>
+</body>
+</html>
