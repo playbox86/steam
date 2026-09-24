@@ -1,0 +1,6 @@
+steam_catalog.py
+steam_catalog.json
+.steam_meta_cache.json
+.steam_meta_cache.tmp
+resume/
+__pycache__/
